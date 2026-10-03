@@ -2,7 +2,7 @@
 
 会议录音 → 手机本机实时转录 → 会中实时纪要 → 散会即出结构化纪要 → 和会议对话。Claude 风格界面，SwiftUI，iOS 18+。
 
-- **转录在本机**：[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 两段式——[X-ASR](https://github.com/Gilgamesh-J/X-ASR) 流式出字（约 0.2 秒），SenseVoice 句末定稿，Silero VAD 断句；离线运行，录音不上传。
+- **转录在本机**：[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 两段式——[X-ASR](https://github.com/Gilgamesh-J/X-ASR) 流式出字（约 0.2 秒），X-ASR 离线版句末定稿，自动增益让远处的声音也能听清，Silero VAD 断句；离线运行，录音不上传。
 - **总结用你自己的模型接口**：Claude、OpenAI、Gemini、DeepSeek、通义千问、Kimi、智谱、OpenRouter，或本地 Ollama / LM Studio / 任何 OpenAI 兼容接口。
 - 纪要每条结论带出处，点一下跳到原话并播放。
 
@@ -17,5 +17,4 @@
 | sherpa-onnx | Apache-2.0 | Swift Package 依赖 |
 | onnxruntime | MIT | sherpa-onnx 的依赖 |
 | X-ASR-zh-en 模型 | Apache-2.0 | 运行时由用户下载，本仓库不分发 |
-| SenseVoice 模型（FunAudioLLM） | 模型自带许可（见其模型仓库） | 运行时由用户下载，本仓库不分发 |
 | Silero VAD 模型 | MIT | 运行时由用户下载，本仓库不分发 |

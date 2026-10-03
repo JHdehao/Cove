@@ -1,11 +1,12 @@
 import Foundation
 import Observation
 
-/// The on-device speech models, downloaded once from their official hosts (about 370 MB):
-/// - X-ASR zh-en (SJTU and others, Apache-2.0): a true streaming Zipformer transducer with
-///   punctuation, 160 ms chunks, for the live captions while someone is speaking.
-/// - SenseVoice small (zh / en / ja / ko / yue): re-reads each finished sentence for the final line;
-///   it's the more accurate of the two on meetings (WenetSpeech-meeting CER 6.5% vs 10.5%).
+/// The on-device speech models, downloaded once from their official hosts (about 310 MB):
+/// - X-ASR zh-en streaming (SJTU and others, Apache-2.0): a true streaming Zipformer transducer
+///   with punctuation, 160 ms chunks, for the live captions while someone is speaking.
+/// - X-ASR zh-en offline: the same family read over each finished sentence for the final line.
+///   Measured on a far-field AISHELL-4 meeting (2026-10-04, see PLAN §2.0) it beat SenseVoice
+///   as the finisher, 13.5% vs 17.0% CER, and is smaller.
 /// - Silero VAD: where sentences start and end.
 @MainActor @Observable
 final class SpeechModels {
@@ -35,13 +36,20 @@ final class SpeechModels {
                  size: 133_898_007,
                  save: .archive(["encoder.int8.onnx": "xasr-encoder.int8.onnx", "decoder.onnx": "xasr-decoder.onnx",
                                  "joiner.int8.onnx": "xasr-joiner.int8.onnx", "tokens.txt": "xasr-tokens.txt"])),
-        Download(url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/model.int8.onnx")!,
-                 size: 237_115_547, save: .file("sense-voice.int8.onnx")),
-        Download(url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/tokens.txt")!,
-                 size: 300_000, save: .file("sense-voice-tokens.txt")),
+        Download(url: URL(string: "\(Self.offlineRepo)/encoder-epoch-99-avg-1.int8.onnx")!,
+                 size: 161_744_450, save: .file("xasr-offline-encoder.int8.onnx")),
+        Download(url: URL(string: "\(Self.offlineRepo)/decoder-epoch-99-avg-1.onnx")!,
+                 size: 11_309_084, save: .file("xasr-offline-decoder.onnx")),
+        Download(url: URL(string: "\(Self.offlineRepo)/joiner-epoch-99-avg-1.int8.onnx")!,
+                 size: 2_581_422, save: .file("xasr-offline-joiner.int8.onnx")),
+        Download(url: URL(string: "\(Self.offlineRepo)/tokens.txt")!,
+                 size: 58_806, save: .file("xasr-offline-tokens.txt")),
         Download(url: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx")!,
                  size: 643_854, save: .file("silero_vad.onnx")),
     ]
+
+    private nonisolated static let offlineRepo =
+        "https://huggingface.co/csukuangfj2/sherpa-onnx-x-asr-zipformer-transducer-zh-en-punct-int8-2026-06-03/resolve/main"
 
     nonisolated static let directory: URL = {
         var url = URL.applicationSupportDirectory.appending(path: "Models", directoryHint: .isDirectory)
