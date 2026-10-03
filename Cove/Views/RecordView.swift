@@ -26,6 +26,7 @@ struct RecordView: View {
     @State private var models = SpeechModels.shared
     @State private var engine: SpeechEngine?
     @State private var engineError: String?
+    @State private var loadingEngine = false
     @State private var tab = Tab.captions
     @State private var finishing = false
     @State private var confirmDiscard = false
@@ -60,7 +61,7 @@ struct RecordView: View {
         .task { await begin() }
         .onChange(of: models.isInstalled) { _, installed in
             // Models finished downloading mid-meeting: captions start from here.
-            if installed, engine == nil, recorder.isRecording { startEngine(offset: recorder.elapsed) }
+            if installed, engine == nil, recorder.isRecording { startEngine() }
         }
         .overlay {
             if finishing {
@@ -122,7 +123,11 @@ struct RecordView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if engine == nil { modelCard }
+                    if loadingEngine {
+                        Label("正在加载语音模型…", systemImage: "hourglass").font(.subheadline).foregroundStyle(.secondary)
+                    } else if engine == nil {
+                        modelCard
+                    }
                     ForEach(Array(transcript.segments.enumerated()), id: \.offset) { _, segment in
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text(clockString(segment.start))
@@ -152,10 +157,10 @@ struct RecordView: View {
             if let engineError {
                 Text(engineError).font(.subheadline).foregroundStyle(.secondary)
             } else if models.isDownloading {
-                Text("正在下载语音模型… \(Int(models.progress * 100))%").font(.subheadline)
+                Text("\(models.phase)语音模型… \(Int(models.progress * 100))%").font(.subheadline)
                 ProgressView(value: models.progress)
             } else {
-                Text("实时字幕需要先下载语音模型（SenseVoice，约 240 MB，只需一次）。录音不受影响，下载完成后字幕从那一刻开始；之前的部分可以在会后转录。")
+                Text("实时字幕需要先下载语音模型（约 \(SpeechModels.totalMB) MB，只需一次）。录音不受影响，下载完成后字幕从那一刻开始；之前的部分可以在会后转录。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Button("下载语音模型") { Task { await models.download() } }
@@ -238,21 +243,29 @@ struct RecordView: View {
 
     private func begin() async {
         notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary)
-        if models.isInstalled { startEngine(offset: 0) }
+        if models.isInstalled { startEngine() }
         await recorder.start()
     }
 
-    private func startEngine(offset: TimeInterval) {
-        do {
-            let engine = try SpeechEngine(offset: offset)
-            engine.onUpdate = { update in
-                transcript.apply(update)
-                if !update.finished.isEmpty { notes.consider(transcript.segments) }
+    /// Loads the models off the main thread (about 400 MB), then attaches to the recording
+    /// from wherever it has got to by then.
+    private func startEngine() {
+        guard !loadingEngine else { return }
+        loadingEngine = true
+        Task {
+            defer { loadingEngine = false }
+            do {
+                let engine = try await Task.detached(priority: .userInitiated) { try SpeechEngine() }.value
+                engine.offset = recorder.elapsed
+                engine.onUpdate = { update in
+                    transcript.apply(update)
+                    if !update.finished.isEmpty { notes.consider(transcript.segments) }
+                }
+                recorder.onSamples = { engine.accept($0) }
+                self.engine = engine
+            } catch {
+                engineError = "语音模型加载失败，本次只录音，会后可以再转录。"
             }
-            recorder.onSamples = { engine.accept($0) }
-            self.engine = engine
-        } catch {
-            engineError = "语音模型加载失败，本次只录音，会后可以再转录。"
         }
     }
 

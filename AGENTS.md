@@ -1,6 +1,6 @@
 # Cove 仓库约定（Codex / Claude Code 通用）
 
-Cove：会议录音 → 本机实时转录（sherpa-onnx + SenseVoice）→ 实时纪要 / 会后纪要 / 对话（云 API 或本地模型接口）。SwiftUI，iOS 18+。计划与进度见 `PLAN.md`。
+Cove：会议录音 → 本机实时转录（sherpa-onnx：X-ASR 流式 + SenseVoice 定稿）→ 实时纪要 / 会后纪要 / 对话（云 API 或本地模型接口）。SwiftUI，iOS 18+。计划与进度见 `PLAN.md`。
 
 - 本机没有 Xcode / Swift，**无法本地编译**；靠 GitHub Actions（`.github/workflows/build-ipa.yml`）编译出无签名 IPA，流程照搬 Conch（`~/data/projects/Conch/HANDOFF.md`）。
 - 新 .swift 放 `Cove/` 下即可（`PBXFileSystemSynchronizedRootGroup`，不用登记）。

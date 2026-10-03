@@ -183,7 +183,7 @@ struct MeetingDetailView: View {
                 Text("正在本机转录… \(Int(transcribing * 100))%").foregroundStyle(.secondary)
                 ProgressView(value: transcribing)
             } else if !models.isInstalled {
-                Text("在本机用 SenseVoice 转录，需要先下载语音模型（约 240 MB，只需一次）。").foregroundStyle(.secondary)
+                Text("在本机转录，需要先下载语音模型（约 \(SpeechModels.totalMB) MB，只需一次）。").foregroundStyle(.secondary)
                 if models.isDownloading {
                     ProgressView(value: models.progress)
                 } else {

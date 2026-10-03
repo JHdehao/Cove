@@ -52,18 +52,18 @@ struct SettingsView: View {
 
                 Section {
                     if models.isInstalled {
-                        LabeledContent("SenseVoice + Silero VAD", value: "已下载")
+                        LabeledContent("X-ASR + SenseVoice + Silero VAD", value: "已下载")
                         Button("删除语音模型", role: .destructive) { models.remove() }
                     } else if models.isDownloading {
-                        ProgressView(value: models.progress) { Text("正在下载… \(Int(models.progress * 100))%") }
+                        ProgressView(value: models.progress) { Text("\(models.phase)… \(Int(models.progress * 100))%") }
                     } else {
-                        Button("下载语音模型（约 240 MB）") { Task { await models.download() } }
+                        Button("下载语音模型（约 \(SpeechModels.totalMB) MB）") { Task { await models.download() } }
                         if let error = models.error { Text(error).font(.caption).foregroundStyle(.red) }
                     }
                 } header: {
                     Text("语音识别（本机）")
                 } footer: {
-                    Text("开源模型 SenseVoice 在手机上离线识别中文、英语、粤语、日语、韩语，录音时实时出字幕，录音不会上传。")
+                    Text("全部开源、在手机上离线运行，录音不会上传：X-ASR 流式识别（中英，约 0.2 秒出字）边说边出字幕，SenseVoice 在每句话结束时重读一遍定稿（中、英、粤、日、韩）。")
                 }
                 .coveCard()
 

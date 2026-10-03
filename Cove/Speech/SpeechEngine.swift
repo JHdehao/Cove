@@ -2,71 +2,76 @@ import AVFoundation
 import Foundation
 import SherpaOnnx
 
-/// Turns 16 kHz mono audio into text as it arrives. Silero VAD cuts the audio into
-/// utterances; while someone is still talking, SenseVoice re-reads the open utterance
-/// about twice a second (a draft line), and when they pause it reads the whole
-/// utterance once more for the final line. SenseVoice is non-streaming but fast enough
-/// (well under 0.2 s per utterance on a recent iPhone) that this feels live.
+/// Turns 16 kHz mono audio into text as it arrives, in two passes:
+/// - X-ASR, a true streaming transducer, reads every 160 ms of audio as it comes and
+///   keeps a draft of the sentence being spoken (shown at once, in grey);
+/// - when Silero VAD hears the sentence end (0.5 s of silence), SenseVoice reads the
+///   whole sentence again for the final line, which replaces the draft.
+/// Drafts cost a few milliseconds per chunk; the final read about 0.1 s per sentence.
 final class SpeechEngine: @unchecked Sendable {
     static let sampleRate = 16_000
 
     struct Update: Sendable {
-        /// The utterance still being spoken; "" once it's finished.
+        /// The sentence still being spoken; "" once it's finished.
         var draft: String
         var finished: [Segment]
     }
 
     private let queue = DispatchQueue(label: "cove.speech", qos: .userInitiated)
-    private let recognizer: SherpaOnnxOfflineRecognizer
+    /// Streaming drafts; nil when transcribing a file (only finals are needed).
+    private let streamer: SherpaOnnxRecognizer?
+    private let finisher: SherpaOnnxOfflineRecognizer
     private let vad: SherpaOnnxVoiceActivityDetectorWrapper
     private let window = 512
+    /// Where in the recording this engine's audio starts (when it attaches mid-meeting). Set before feeding audio.
+    var offset: TimeInterval = 0
 
     private var pending: [Float] = []
-    /// The open utterance's audio so far, for drafts.
-    private var open: [Float] = []
-    private var lastDraftSize = 0
-    private var lastDraftCost: TimeInterval = 0
-    private var backlog = 0
-    private let lock = NSLock()
+    private var lastDraft = ""
 
     /// Called on the main queue.
     var onUpdate: (@MainActor (Update) -> Void)?
 
     /// Fails if the models aren't downloaded (sherpa-onnx would abort on a missing file).
-    /// `offset`: where in the recording this engine's audio starts (when it's created mid-meeting).
-    init(drafts: Bool = true, offset: TimeInterval = 0) throws {
+    init(drafts: Bool = true) throws {
         guard SpeechModels.filesPresent else { throw CocoaError(.fileNoSuchFile) }
-        self.drafts = drafts
-        self.offset = offset
+        let features = sherpaOnnxFeatureConfig(sampleRate: Self.sampleRate, featureDim: 80)
 
-        let senseVoice = sherpaOnnxOfflineSenseVoiceModelConfig(model: SpeechModels.modelPath, language: "", useInverseTextNormalization: true)
-        let modelConfig = sherpaOnnxOfflineModelConfig(tokens: SpeechModels.tokensPath, numThreads: 2, senseVoice: senseVoice)
-        var config = sherpaOnnxOfflineRecognizerConfig(featConfig: sherpaOnnxFeatureConfig(sampleRate: Self.sampleRate, featureDim: 80),
-                                                       modelConfig: modelConfig)
-        recognizer = SherpaOnnxOfflineRecognizer(config: &config)
+        if drafts {
+            let transducer = sherpaOnnxOnlineTransducerModelConfig(encoder: SpeechModels.path("xasr-encoder.int8.onnx"),
+                                                                   decoder: SpeechModels.path("xasr-decoder.onnx"),
+                                                                   joiner: SpeechModels.path("xasr-joiner.int8.onnx"))
+            let model = sherpaOnnxOnlineModelConfig(tokens: SpeechModels.path("xasr-tokens.txt"), transducer: transducer, numThreads: 2)
+            var config = sherpaOnnxOnlineRecognizerConfig(featConfig: features, modelConfig: model)
+            streamer = SherpaOnnxRecognizer(config: &config)
+        } else {
+            streamer = nil
+        }
 
-        // Up to 20 s per utterance: long enough for a sentence, short enough to keep finals coming.
-        let silero = sherpaOnnxSileroVadModelConfig(model: SpeechModels.vadPath, threshold: 0.5, minSilenceDuration: 0.5,
+        let senseVoice = sherpaOnnxOfflineSenseVoiceModelConfig(model: SpeechModels.path("sense-voice.int8.onnx"), language: "",
+                                                                useInverseTextNormalization: true)
+        let model = sherpaOnnxOfflineModelConfig(tokens: SpeechModels.path("sense-voice-tokens.txt"), numThreads: 2, senseVoice: senseVoice)
+        var config = sherpaOnnxOfflineRecognizerConfig(featConfig: features, modelConfig: model)
+        finisher = SherpaOnnxOfflineRecognizer(config: &config)
+
+        // Up to 20 s per sentence: long enough for one, short enough to keep finals coming.
+        let silero = sherpaOnnxSileroVadModelConfig(model: SpeechModels.path("silero_vad.onnx"), threshold: 0.5, minSilenceDuration: 0.5,
                                                     minSpeechDuration: 0.25, windowSize: window, maxSpeechDuration: 20)
         var vadConfig = sherpaOnnxVadModelConfig(sileroVad: silero, sampleRate: Int32(Self.sampleRate), numThreads: 1)
         vad = SherpaOnnxVoiceActivityDetectorWrapper(config: &vadConfig, buffer_size_in_seconds: 60)
     }
 
-    private let drafts: Bool
-    private let offset: TimeInterval
-
     /// Feed audio from any thread; it's processed in order on the engine's queue.
     func accept(_ samples: [Float]) {
-        lock.withLock { backlog += samples.count }
         queue.async { self.process(samples) }
     }
 
-    /// Ends the last utterance and calls back once everything fed so far is final.
+    /// Ends the last sentence and calls back once everything fed so far is final.
     func finish(_ done: @escaping @Sendable () -> Void) {
         queue.async {
             self.vad.flush()
             let finished = self.drain()
-            self.open = []
+            self.streamer?.reset()
             self.deliver(Update(draft: "", finished: finished))
             DispatchQueue.main.async(execute: done)
         }
@@ -86,7 +91,7 @@ final class SpeechEngine: @unchecked Sendable {
                         guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames) else { break }
                         try file.read(into: buffer, frameCount: frames)
                         if buffer.frameLength == 0 { break }
-                        segments += engine.processNow(resampler.convert(buffer))
+                        segments += engine.segment(resampler.convert(buffer))
                         progress(Double(file.framePosition) / Double(max(1, file.length)))
                     }
                     engine.vad.flush()
@@ -102,64 +107,54 @@ final class SpeechEngine: @unchecked Sendable {
     // MARK: Work (on `queue`, or the caller's thread for files)
 
     private func process(_ samples: [Float]) {
-        let finished = processNow(samples)
-        lock.withLock { backlog -= samples.count }
-        var draft: String?
-        if drafts, vad.isSpeechDetected() {
-            // A draft every half second of new speech, less often if decoding can't keep up.
-            let grown = open.count - lastDraftSize
-            let behind = lock.withLock { backlog } > Self.sampleRate
-            if grown >= Self.sampleRate / 2, !behind, lastDraftCost < 0.4 {
-                let start = Date()
-                draft = decode(Array(open.suffix(Self.sampleRate * 20)))
-                lastDraftCost = Date().timeIntervalSince(start)
-                lastDraftSize = open.count
-            }
-        } else if !finished.isEmpty {
+        var draft = lastDraft
+        if let streamer {
+            streamer.acceptWaveform(samples: samples, sampleRate: Self.sampleRate)
+            while streamer.isReady() { streamer.decode() }
+            draft = streamer.getResult().text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let finished = segment(samples)
+        if !finished.isEmpty {
+            // The sentence is final; the next draft starts from scratch.
+            streamer?.reset()
             draft = ""
         }
-        if draft != nil || !finished.isEmpty {
-            deliver(Update(draft: draft ?? "", finished: finished))
+        if draft != lastDraft || !finished.isEmpty {
+            lastDraft = draft
+            deliver(Update(draft: draft, finished: finished))
         }
     }
 
-    private func processNow(_ samples: [Float]) -> [Segment] {
+    /// Runs the VAD over new audio and returns the sentences it closed, read by SenseVoice.
+    private func segment(_ samples: [Float]) -> [Segment] {
         pending += samples
         var finished: [Segment] = []
         var consumed = 0
         while pending.count - consumed >= window {
-            let chunk = Array(pending[consumed..<consumed + window])
+            vad.acceptWaveform(samples: Array(pending[consumed..<consumed + window]))
             consumed += window
-            vad.acceptWaveform(samples: chunk)
-            if vad.isSpeechDetected() { open += chunk }
-            if !vad.isEmpty() {
-                finished += drain()
-                open = []
-                lastDraftSize = 0
-            }
+            if !vad.isEmpty() { finished += drain() }
         }
         pending.removeFirst(consumed)
         return finished
     }
 
-    /// Reads every utterance the VAD has closed.
+    /// Reads every sentence the VAD has closed.
     private func drain() -> [Segment] {
         var segments: [Segment] = []
         while !vad.isEmpty() {
             let segment = vad.front()
-            let text = decode(segment.samples)
-            if !text.isEmpty {
-                let start = offset + Double(segment.start) / Double(Self.sampleRate)
-                segments.append(Segment(start: start, end: start + Double(segment.n) / Double(Self.sampleRate), speaker: nil, text: text))
+            let samples = segment.samples
+            if samples.count > Self.sampleRate / 10 {
+                let text = finisher.decode(samples: samples, sampleRate: Self.sampleRate).text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    let start = offset + Double(segment.start) / Double(Self.sampleRate)
+                    segments.append(Segment(start: start, end: start + Double(segment.n) / Double(Self.sampleRate), speaker: nil, text: text))
+                }
             }
             vad.pop()
         }
         return segments
-    }
-
-    private func decode(_ samples: [Float]) -> String {
-        guard samples.count > Self.sampleRate / 10 else { return "" }
-        return recognizer.decode(samples: samples, sampleRate: Self.sampleRate).text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func deliver(_ update: Update) {

@@ -1,28 +1,46 @@
 import Foundation
 import Observation
 
-/// The on-device speech models: SenseVoice (zh / en / ja / ko / yue, with punctuation)
-/// and Silero VAD. Downloaded once from their official hosts, about 240 MB.
+/// The on-device speech models, downloaded once from their official hosts (about 370 MB):
+/// - X-ASR zh-en (SJTU and others, Apache-2.0): a true streaming Zipformer transducer with
+///   punctuation, 160 ms chunks, for the live captions while someone is speaking.
+/// - SenseVoice small (zh / en / ja / ko / yue): re-reads each finished sentence for the final line;
+///   it's the more accurate of the two on meetings (WenetSpeech-meeting CER 6.5% vs 10.5%).
+/// - Silero VAD: where sentences start and end.
 @MainActor @Observable
 final class SpeechModels {
     static let shared = SpeechModels()
 
-    struct File: Sendable {
-        let name: String
+    struct Download: Sendable {
         let url: URL
         let size: Int64
+        /// A single file saved under this name, or a .tar.bz2 whose members (by base name) are saved under the mapped names.
+        let save: Save
+
+        enum Save: Sendable {
+            case file(String)
+            case archive([String: String])
+        }
+
+        var names: [String] {
+            switch save {
+            case .file(let name): [name]
+            case .archive(let map): Array(map.values)
+            }
+        }
     }
 
-    nonisolated static let files: [File] = [
-        File(name: "sense-voice.int8.onnx",
-             url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/model.int8.onnx")!,
-             size: 237_115_547),
-        File(name: "sense-voice-tokens.txt",
-             url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/tokens.txt")!,
-             size: 300_000),
-        File(name: "silero_vad.onnx",
-             url: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx")!,
-             size: 643_854),
+    nonisolated static let downloads: [Download] = [
+        Download(url: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05.tar.bz2")!,
+                 size: 133_898_007,
+                 save: .archive(["encoder.int8.onnx": "xasr-encoder.int8.onnx", "decoder.onnx": "xasr-decoder.onnx",
+                                 "joiner.int8.onnx": "xasr-joiner.int8.onnx", "tokens.txt": "xasr-tokens.txt"])),
+        Download(url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/model.int8.onnx")!,
+                 size: 237_115_547, save: .file("sense-voice.int8.onnx")),
+        Download(url: URL(string: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/tokens.txt")!,
+                 size: 300_000, save: .file("sense-voice-tokens.txt")),
+        Download(url: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx")!,
+                 size: 643_854, save: .file("silero_vad.onnx")),
     ]
 
     nonisolated static let directory: URL = {
@@ -34,16 +52,18 @@ final class SpeechModels {
         return url
     }()
 
-    nonisolated static var modelPath: String { directory.appending(path: files[0].name).path }
-    nonisolated static var tokensPath: String { directory.appending(path: files[1].name).path }
-    nonisolated static var vadPath: String { directory.appending(path: files[2].name).path }
+    nonisolated static func path(_ name: String) -> String { directory.appending(path: name).path }
 
     nonisolated static var filesPresent: Bool {
-        files.allSatisfy { FileManager.default.fileExists(atPath: directory.appending(path: $0.name).path) }
+        downloads.flatMap(\.names).allSatisfy { FileManager.default.fileExists(atPath: path($0)) }
     }
+
+    /// The download size, for the button: "约 370 MB".
+    nonisolated static var totalMB: Int { Int(downloads.reduce(0) { $0 + $1.size } / 1_000_000) }
 
     private(set) var isDownloading = false
     private(set) var progress: Double = 0
+    private(set) var phase = ""
     var error: String?
 
     /// Re-read after downloads and removals (the file system isn't observed).
@@ -54,23 +74,33 @@ final class SpeechModels {
         isDownloading = true
         error = nil
         progress = 0
-        defer { isDownloading = false }
-        let total = Double(Self.files.reduce(0) { $0 + $1.size })
+        defer { isDownloading = false; phase = "" }
+        let total = Double(Self.downloads.reduce(0) { $0 + $1.size })
         var done: Int64 = 0
         do {
-            for file in Self.files {
-                let destination = Self.directory.appending(path: file.name)
-                if FileManager.default.fileExists(atPath: destination.path) {
-                    done += file.size
+            for item in Self.downloads {
+                if item.names.allSatisfy({ FileManager.default.fileExists(atPath: Self.path($0)) }) {
+                    done += item.size
                     continue
                 }
+                phase = "正在下载"
                 let base = Double(done)
-                let temporary = try await Self.fetch(file.url) { received in
+                let temporary = try await Self.fetch(item.url) { received in
                     Task { @MainActor in self.progress = min(1, (base + Double(received)) / total) }
                 }
-                try? FileManager.default.removeItem(at: destination)
-                try FileManager.default.moveItem(at: temporary, to: destination)
-                done += file.size
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                switch item.save {
+                case .file(let name):
+                    let destination = Self.directory.appending(path: name)
+                    try? FileManager.default.removeItem(at: destination)
+                    try FileManager.default.moveItem(at: temporary, to: destination)
+                case .archive(let map):
+                    phase = "正在解压"
+                    try await Task.detached(priority: .userInitiated) {
+                        try ModelArchive.extract(temporary, files: map, to: Self.directory)
+                    }.value
+                }
+                done += item.size
             }
             progress = 1
             isInstalled = Self.filesPresent
@@ -80,8 +110,8 @@ final class SpeechModels {
     }
 
     func remove() {
-        for file in Self.files {
-            try? FileManager.default.removeItem(at: Self.directory.appending(path: file.name))
+        for name in Self.downloads.flatMap(\.names) {
+            try? FileManager.default.removeItem(atPath: Self.path(name))
         }
         isInstalled = false
     }
