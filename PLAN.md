@@ -53,6 +53,10 @@ M0–M3 + M5 部分**代码已写完，未编译**（本机无 Xcode，等 GitHu
 | Nemotron 3.5 Streaming / Voxtral Realtime | 2026 | 0.6B / 4B | 弱 | 20.18 / 60.54 | 不用 |
 | Phonon-2、Parakeet Ultra/Redux、Cactus Whistle | 2026-09 | 17–180 MB | ❌ 仅英语 / 欧洲语言 | — | 不适用 |
 
+**微软 VibeVoice-ASR 系列（2026-10-04 补查，MIT 许可）**：
+- VibeVoice-ASR-Streaming 7B / 1.5B（2026-09）：边转写边标说话人，但平均延迟约 2 秒（2.9 s 分块）；微软自己的表里 AISHELL-1 CER 4.01，不如 X-ASR 的 3.61；7B 需约 17 GB 显存，3060 放不下 → 不用于实时字幕。
+- VibeVoice-ASR（2026-01，8.7B，非流式）：60 分钟音频一次处理，同时出说话人、时间戳、文字，支持热词；VibeVoice-ASR-BitNet（2026-07，1.6 GB，CPU 实时）是它的压缩版，配 VibeASR.cpp → **M4「会后说话人分离 + 精修」候选**，可在 omarchy CPU 上跑，不占显卡。
+
 结论：手机端没有比 X-ASR 更合适的中文小流式模型；想再提升准确率，下一步是「家里电脑加速」——omarchy 上跑 R2T2 的 WebSocket 流式服务，手机经 Tailscale 推 PCM，连得上用服务器结果，连不上自动回落本机。
 
 - 旧方案（SenseVoice 每 0.5 s 重读整句做草稿）的延迟是「0.5 s 攒音频 + 重读时间」，句子越长越慢；改为 X-ASR 真流式后草稿延迟恒定在一块（160 ms）加解码几毫秒。
