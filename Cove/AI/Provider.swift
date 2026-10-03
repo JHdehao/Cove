@@ -1,0 +1,151 @@
+import Foundation
+import Observation
+
+/// The request format an endpoint speaks.
+enum WireFormat: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// Anthropic Messages (`/v1/messages`). Also offered by some other services.
+    case anthropic
+    /// OpenAI Chat Completions (`/chat/completions`): nearly every cloud service, Ollama, LM Studio, vLLM, LiteLLM.
+    case chatCompletions
+    /// OpenAI Responses (`/responses`): OpenAI's newer models.
+    case responses
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .anthropic: "Anthropic Messages"
+        case .chatCompletions: "Chat Completions"
+        case .responses: "Responses"
+        }
+    }
+}
+
+/// A starting point for a new endpoint. Model names change often, so most presets
+/// leave the model empty and the user picks one from the service's own list.
+struct ProviderPreset: Identifiable, Sendable {
+    let id: String
+    let name: String
+    let baseURL: String
+    let wire: WireFormat
+    var model = ""
+    var needsKey = true
+    var isLocal = false
+    /// Characters of transcript one request may carry before long meetings are summarized in parts.
+    var contextChars = 120_000
+    var note = ""
+
+    static let all: [ProviderPreset] = [
+        ProviderPreset(id: "anthropic", name: "Claude（Anthropic）", baseURL: "https://api.anthropic.com", wire: .anthropic,
+                       model: "claude-sonnet-5-5", contextChars: 300_000),
+        ProviderPreset(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1", wire: .responses, contextChars: 200_000),
+        ProviderPreset(id: "gemini", name: "Google Gemini", baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+                       wire: .chatCompletions, contextChars: 400_000),
+        ProviderPreset(id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", wire: .chatCompletions,
+                       model: "deepseek-chat", contextChars: 100_000),
+        ProviderPreset(id: "qwen", name: "通义千问（阿里云国际）", baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                       wire: .chatCompletions, contextChars: 150_000),
+        ProviderPreset(id: "kimi", name: "Kimi（Moonshot）", baseURL: "https://api.moonshot.ai/v1", wire: .chatCompletions,
+                       contextChars: 150_000),
+        ProviderPreset(id: "glm", name: "智谱 GLM（Z.ai）", baseURL: "https://api.z.ai/api/paas/v4", wire: .chatCompletions,
+                       contextChars: 150_000),
+        ProviderPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", wire: .chatCompletions,
+                       contextChars: 150_000),
+        ProviderPreset(id: "ollama", name: "Ollama（本地）", baseURL: "http://omarchy:11434/v1", wire: .chatCompletions,
+                       needsKey: false, isLocal: true, contextChars: 24_000,
+                       note: "电脑上 Ollama 要监听 0.0.0.0（OLLAMA_HOST=0.0.0.0），手机经 Tailscale 或同一 Wi-Fi 访问。上下文长度按模型的 num_ctx 调整。"),
+        ProviderPreset(id: "lmstudio", name: "LM Studio（本地）", baseURL: "http://192.168.1.2:1234/v1", wire: .chatCompletions,
+                       needsKey: false, isLocal: true, contextChars: 24_000,
+                       note: "在 LM Studio 的 Developer 页打开 Serve on Local Network。"),
+        ProviderPreset(id: "custom-openai", name: "自定义（OpenAI 兼容）", baseURL: "", wire: .chatCompletions, needsKey: false,
+                       note: "vLLM、LiteLLM、llama.cpp server、one-api 等都可以用这个。"),
+        ProviderPreset(id: "custom-anthropic", name: "自定义（Anthropic 兼容）", baseURL: "", wire: .anthropic),
+    ]
+
+    static func named(_ id: String) -> ProviderPreset? { all.first { $0.id == id } }
+}
+
+/// One saved endpoint. The API key lives in the Keychain, keyed by `id`.
+struct ProviderConfig: Codable, Identifiable, Hashable, Sendable {
+    var id = UUID()
+    var name: String
+    var presetID: String
+    var baseURL: String
+    var wire: WireFormat
+    var model: String
+    var isLocal: Bool
+    var contextChars: Int
+
+    init(preset: ProviderPreset) {
+        name = preset.name
+        presetID = preset.id
+        baseURL = preset.baseURL
+        wire = preset.wire
+        model = preset.model
+        isLocal = preset.isLocal
+        contextChars = preset.contextChars
+    }
+
+    var keyAccount: String { "provider-key-\(id.uuidString)" }
+    var apiKey: String { Keychain.string(for: keyAccount) ?? "" }
+
+    /// Ready to send: an address and a model.
+    var isUsable: Bool { URL(string: baseURL)?.host != nil && !model.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    var host: String { URL(string: baseURL)?.host ?? baseURL }
+}
+
+/// The saved endpoints and which one summaries use.
+@MainActor @Observable
+final class ProviderStore {
+    static let shared = ProviderStore()
+
+    private(set) var providers: [ProviderConfig] = []
+    var activeID: UUID? {
+        didSet { UserDefaults.standard.set(activeID?.uuidString, forKey: Self.activeKey) }
+    }
+
+    private static let listKey = "providers.v1"
+    private static let activeKey = "providers.active"
+
+    private init() {
+        if let data = UserDefaults.standard.data(forKey: Self.listKey),
+           let list = try? JSONDecoder().decode([ProviderConfig].self, from: data) {
+            providers = list
+        }
+        activeID = UserDefaults.standard.string(forKey: Self.activeKey).flatMap(UUID.init(uuidString:))
+        if active == nil { activeID = providers.first?.id }
+    }
+
+    var active: ProviderConfig? { providers.first { $0.id == activeID } }
+
+    func provider(_ id: UUID?) -> ProviderConfig? { providers.first { $0.id == id } }
+
+    func save(_ config: ProviderConfig, key: String?) {
+        if let index = providers.firstIndex(where: { $0.id == config.id }) {
+            providers[index] = config
+        } else {
+            providers.append(config)
+        }
+        if let key {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { Keychain.delete(config.keyAccount) } else { try? Keychain.set(trimmed, for: config.keyAccount) }
+        }
+        if active == nil { activeID = config.id }
+        persist()
+    }
+
+    func delete(_ id: UUID) {
+        guard let config = provider(id) else { return }
+        Keychain.delete(config.keyAccount)
+        providers.removeAll { $0.id == id }
+        if activeID == id { activeID = providers.first?.id }
+        persist()
+    }
+
+    private func persist() {
+        if let data = try? JSONEncoder().encode(providers) {
+            UserDefaults.standard.set(data, forKey: Self.listKey)
+        }
+    }
+}

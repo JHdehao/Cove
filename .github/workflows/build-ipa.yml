@@ -1,0 +1,66 @@
+name: Build unsigned IPA (Release)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Cove/**'
+      - 'Cove.xcodeproj/**'
+      - '.github/workflows/build-ipa.yml'
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: Build (无签名)
+        run: |
+          set -o pipefail
+          # 每个包可辨认：build 号 = CI 运行序号，版本号 0.1.<序号>（SideStore 按版本号判断有无更新），
+          # 提交号写进 Info.plist（设置页底部显示）
+          xcodebuild -project Cove.xcodeproj -scheme Cove -configuration Release \
+            MARKETING_VERSION=0.1.${{ github.run_number }} CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            COVE_COMMIT=${GITHUB_SHA::7} \
+            -derivedDataPath build/dd \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee "$RUNNER_TEMP/cove-build.log" | tail -40
+
+      - name: 编译报错
+        if: failure()
+        run: |
+          grep -E ": error:|BUILD FAILED" "$RUNNER_TEMP/cove-build.log" | sed -E 's#^.*/Cove/Cove/##' | sort -u | head -40
+
+      - name: 打包 IPA
+        run: |
+          set -euo pipefail
+          APP=build/dd/Build/Products/Release-iphoneos/Cove.app
+          test -d "$APP"
+          rm -rf out && mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out && zip -qry Cove-unsigned.ipa Payload
+          ls -lh Cove-unsigned.ipa
+          shasum -a 256 Cove-unsigned.ipa | cut -c1-16
+          # 崩溃符号化用
+          (cd ../build/dd/Build/Products/Release-iphoneos && zip -qry ../../../../../out/Cove-dSYM.zip Cove.app.dSYM) || echo "没有 dSYM，跳过"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cove-unsigned-ipa
+          path: out/Cove-unsigned.ipa
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cove-dSYM
+          path: out/Cove-dSYM.zip
+          retention-days: 90
