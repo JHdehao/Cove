@@ -42,6 +42,19 @@ M0–M3 + M5 部分**代码已写完，未编译**（本机无 Xcode，等 GitHu
 | Nemotron 3.5 ASR Streaming 0.6B（NVIDIA） | 2026-06 | ✅ 80 ms 起 | 453 MB | 普通话约 19%（FLEURS） | 中文太弱，不用 |
 | Fun-ASR-Nano / FireRedASR2 / MiMo-V2.5-ASR | 2025-12 ~ 2026-04 | ❌ | 0.5–7.6B | — | 太大，留作会后服务器精修候选 |
 
+
+**HuggingFace 补充调研（2026-10-04，按 trending / 本周点赞）**
+
+| 模型 | 发布 | 大小 | 中文 | WenetSpeech-meeting CER（160 ms 流式，有道评测） | 适合 |
+|---|---|---|---|---|---|
+| **网易有道 Confucius4-R2T2**（基于 Qwen3-ASR，真流式 80 ms–2 s，只追加不回改，支持热词 / 上下文） | 2026-09 | 2B（GGUF Q4_K_M 可用） | ✅ 中英优化 | **7.27** | 服务器（RTX 3060 够用）；模型许可为有道自有协议，月活 1 亿以下免费 |
+| Audio8-ASR-Infinite（Voxtral 音频塔 + Qwen2.5-3B，语义 VAD，无限时长） | 2026-09 | 4B（bf16 8.2 GB） | ✅ 中英 | AISHELL-4 会议 2.9（480 ms，自报） | 服务器；Apache-2.0；预览版 |
+| X-ASR-zh-en | 2026-06 | 160M（int8 128 MB） | ✅ | 11.33 | **手机端**，同量级里中文流式最好 |
+| Nemotron 3.5 Streaming / Voxtral Realtime | 2026 | 0.6B / 4B | 弱 | 20.18 / 60.54 | 不用 |
+| Phonon-2、Parakeet Ultra/Redux、Cactus Whistle | 2026-09 | 17–180 MB | ❌ 仅英语 / 欧洲语言 | — | 不适用 |
+
+结论：手机端没有比 X-ASR 更合适的中文小流式模型；想再提升准确率，下一步是「家里电脑加速」——omarchy 上跑 R2T2 的 WebSocket 流式服务，手机经 Tailscale 推 PCM，连得上用服务器结果，连不上自动回落本机。
+
 - 旧方案（SenseVoice 每 0.5 s 重读整句做草稿）的延迟是「0.5 s 攒音频 + 重读时间」，句子越长越慢；改为 X-ASR 真流式后草稿延迟恒定在一块（160 ms）加解码几毫秒。
 - X-ASR int8 只以 `.tar.bz2` 发布（GitHub sherpa-onnx asr-models），App 内用系统 libbz2 + 流式 tar 解析解出（`Speech/ModelArchive.swift`，逻辑已用 Python 移植版对真实压缩包验证）。
 - 语音模型合计约 370 MB。
