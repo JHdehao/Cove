@@ -24,7 +24,7 @@ struct RecordView: View {
     @State private var transcript = LiveTranscript()
     @State private var notes = LiveSummarizer()
     @State private var models = SpeechModels.shared
-    @State private var engine: SpeechEngine?
+    @State private var engine: LiveTranscriber?
     @State private var engineError: String?
     @State private var loadingEngine = false
     @State private var tab = Tab.captions
@@ -243,19 +243,20 @@ struct RecordView: View {
 
     private func begin() async {
         notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary)
-        if models.isInstalled { startEngine() }
+        if Transcription.isReady { startEngine() }
         await recorder.start()
     }
 
-    /// Loads the models off the main thread (about 400 MB), then attaches to the recording
-    /// from wherever it has got to by then.
+    /// Loads the chosen engine off the main thread (the open one reads ~300 MB of models;
+    /// Apple's may first install its system model), then attaches to the recording from
+    /// wherever it has got to by then.
     private func startEngine() {
         guard !loadingEngine else { return }
         loadingEngine = true
         Task {
             defer { loadingEngine = false }
             do {
-                let engine = try await Task.detached(priority: .userInitiated) { try SpeechEngine() }.value
+                let engine = try await Transcription.makeLive()
                 engine.offset = recorder.elapsed
                 engine.onUpdate = { update in
                     transcript.apply(update)
@@ -264,7 +265,7 @@ struct RecordView: View {
                 recorder.onSamples = { engine.accept($0) }
                 self.engine = engine
             } catch {
-                engineError = "语音模型加载失败，本次只录音，会后可以再转录。"
+                engineError = "语音识别没能启动（\(error.localizedDescription)），本次只录音，会后可以再转录。"
             }
         }
     }

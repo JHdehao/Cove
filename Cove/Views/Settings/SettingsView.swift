@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage(SummaryKey.auto) private var autoSummarize = true
     @State private var store = ProviderStore.shared
     @State private var models = SpeechModels.shared
+    @AppStorage(SpeechKey.engine) private var speechEngine = TranscriptionEngine.open.rawValue
+    @AppStorage(SpeechKey.appleLanguage) private var appleLanguage = AppleSpeechLanguage.mandarin.rawValue
     @State private var adding = false
     @State private var editing: ProviderConfig?
 
@@ -51,7 +53,16 @@ struct SettingsView: View {
                 .coveCard()
 
                 Section {
-                    if models.isInstalled {
+                    if Transcription.appleSupported {
+                        Picker("识别引擎", selection: $speechEngine) {
+                            ForEach(TranscriptionEngine.allCases) { Text($0.label).tag($0.rawValue) }
+                        }
+                    }
+                    if Transcription.engine == .apple {
+                        Picker("识别语言", selection: $appleLanguage) {
+                            ForEach(AppleSpeechLanguage.allCases) { Text($0.label).tag($0.rawValue) }
+                        }
+                    } else if models.isInstalled {
                         LabeledContent("X-ASR 流式 + 离线 + Silero VAD", value: "已下载")
                         Button("删除语音模型", role: .destructive) { models.remove() }
                     } else if models.isDownloading {
@@ -63,7 +74,11 @@ struct SettingsView: View {
                 } header: {
                     Text("语音识别（本机）")
                 } footer: {
-                    Text("全部开源、在手机上离线运行，录音不会上传：X-ASR 流式识别边说边出字幕（约 0.2 秒），每句话结束时用 X-ASR 离线版重读一遍定稿。支持普通话和英语（含中英混说）。")
+                    if Transcription.engine == .apple {
+                        Text("苹果系统自带的识别（iOS 26），在手机上离线运行，录音不会上传。不用下载模型（首次使用某种语言时系统会自动准备），比开源引擎省电，支持粤语、日语、韩语；不开源。")
+                    } else {
+                        Text("全部开源、在手机上离线运行，录音不会上传：X-ASR 流式识别边说边出字幕（约 0.2 秒），每句话结束时用 X-ASR 离线版重读一遍定稿。支持普通话和英语（含中英混说）。")
+                    }
                 }
                 .coveCard()
 

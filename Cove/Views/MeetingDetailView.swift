@@ -60,7 +60,7 @@ struct MeetingDetailView: View {
         .onAppear {
             if let url = meeting.audioURL, FileManager.default.fileExists(atPath: url.path) { player.load(url) }
             // An imported or uncaptioned recording: transcribe it now.
-            if meeting.segments.isEmpty, meeting.audioURL != nil, models.isInstalled, transcribing == nil { transcribe() }
+            if meeting.segments.isEmpty, meeting.audioURL != nil, Transcription.isReady, transcribing == nil { transcribe() }
             if autoSummarize, meeting.summary.isEmpty, !meeting.segments.isEmpty, providers.active?.isUsable == true,
                !summarizer.isRunning { summarize() }
         }
@@ -182,7 +182,7 @@ struct MeetingDetailView: View {
             } else if let transcribing {
                 Text("正在本机转录… \(Int(transcribing * 100))%").foregroundStyle(.secondary)
                 ProgressView(value: transcribing)
-            } else if !models.isInstalled {
+            } else if !Transcription.isReady {
                 Text("在本机转录，需要先下载语音模型（约 \(SpeechModels.totalMB) MB，只需一次）。").foregroundStyle(.secondary)
                 if models.isDownloading {
                     ProgressView(value: models.progress)
@@ -223,7 +223,7 @@ struct MeetingDetailView: View {
                         }
                     }
                 }
-                if meeting.audioURL != nil, models.isInstalled, transcribing == nil {
+                if meeting.audioURL != nil, Transcription.isReady, transcribing == nil {
                     Button { transcribe() } label: { Label("重新转录", systemImage: "waveform") }
                 }
                 if !Summarizer.actionItems(in: meeting.summary).isEmpty {
@@ -266,7 +266,7 @@ struct MeetingDetailView: View {
         transcribeError = nil
         Task {
             do {
-                let segments = try await SpeechEngine.transcribe(url) { value in
+                let segments = try await Transcription.transcribe(url) { value in
                     Task { @MainActor in if transcribing != nil { transcribing = value } }
                 }
                 meeting.segments = segments
