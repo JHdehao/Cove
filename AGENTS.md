@@ -3,6 +3,7 @@
 Cove：会议录音 → 本机实时转录（sherpa-onnx：X-ASR 流式出草稿 + X-ASR 离线定稿，自动增益）→ 实时纪要 / 会后纪要 / 对话（云 API 或本地模型接口）。SwiftUI，iOS 18+。计划与进度见 `PLAN.md`。
 
 - 本机没有 Xcode / Swift，**无法本地编译**；靠 GitHub Actions（`.github/workflows/build-ipa.yml`）编译出无签名 IPA，流程照搬 Conch（`~/data/projects/Conch/HANDOFF.md`）。
+- **出包装机：`tools/ipa.sh`**（要求 HEAD 已 push）：等 CI 绿 → oci 从 GitHub 拉产物 → 发布 SideStore 源 `https://jhai.cc.cd/<令牌>/cove/source.json`（令牌在仓库外 `~/.config/conch/sidestore-token`，与 Conch 共用 oci 上的 conch-www.service 与 cloudflared 规则；仓库公开，令牌绝不能进仓库）。版本号 = `0.1.<CI 运行序号>`，设置页底部显示 build 号和提交号。
 - 新 .swift 放 `Cove/` 下即可（`PBXFileSystemSynchronizedRootGroup`，不用登记）。
 - Bundle ID `com.tj.cove.CK5DY89VN5`。
 - 样式统一用 `Cove/Style/CoveStyle.swift`（Claude 昼/夜配色，与 Conch 一致）。
