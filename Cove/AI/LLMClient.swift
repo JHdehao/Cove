@@ -41,6 +41,9 @@ struct LLMClient: Sendable {
 
     /// Without a session each client gets its own: OpenCode Go rejects requests that lack one (400).
     init(_ config: ProviderConfig, session: String = UUID().uuidString) {
+        var config = config
+        // OpenCode Go doesn't translate between formats: a model only answers on its own path.
+        if config.presetID == "opencode-go" { config.wire = ProviderPreset.openCodeGoWire(for: config.model) }
         self.config = config
         apiKey = config.apiKey
         self.session = session

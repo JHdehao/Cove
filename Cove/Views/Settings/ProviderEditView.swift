@@ -26,6 +26,7 @@ struct ProviderEditView: View {
                     Picker("请求格式", selection: $config.wire) {
                         ForEach(WireFormat.allCases) { Text($0.label).tag($0) }
                     }
+                    .disabled(config.presetID == "opencode-go")
                     SecureField(preset?.needsKey == false ? "API Key（本地接口可留空）" : "API Key", text: $key)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
