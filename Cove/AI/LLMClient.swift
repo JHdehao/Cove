@@ -86,18 +86,29 @@ struct LLMClient: Sendable {
     // MARK: Completion
 
     /// The whole reply at once.
-    func complete(system: String, messages: [ChatMessage], maxTokens: Int = 8000) async throws -> String {
+    func complete(system: String, messages: [ChatMessage], maxTokens: Int? = nil) async throws -> String {
         var text = ""
         for try await delta in stream(system: system, messages: messages, maxTokens: maxTokens) { text += delta }
         return text
     }
 
+    /// Output cap for Anthropic Messages, which requires one; the other formats send none
+    /// unless asked, leaving it to the model's own limit.
+    static let anthropicMaxTokens = 128_000
+
     /// The reply as it's written, a piece at a time.
-    func stream(system: String, messages: [ChatMessage], maxTokens: Int = 8000) -> AsyncThrowingStream<String, Error> {
+    func stream(system: String, messages: [ChatMessage], maxTokens: Int? = nil) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await run(system: system, messages: messages, maxTokens: maxTokens) { continuation.yield($0) }
+                    do {
+                        try await run(system: system, messages: messages, maxTokens: maxTokens) { continuation.yield($0) }
+                    } catch LLMError.http(400, let body) where maxTokens == nil && config.wire == .anthropic {
+                        // "max_tokens: 128000 > 64000, which is the maximum allowed…": retry at the model's limit.
+                        guard body.contains("max_tokens"), let match = body.firstMatch(of: #/> *(\d+)/#),
+                              let limit = Int(match.1), limit < Self.anthropicMaxTokens else { throw LLMError.http(400, body) }
+                        try await run(system: system, messages: messages, maxTokens: limit) { continuation.yield($0) }
+                    }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -107,7 +118,7 @@ struct LLMClient: Sendable {
         }
     }
 
-    private func run(system: String, messages: [ChatMessage], maxTokens: Int, yield: (String) -> Void) async throws {
+    private func run(system: String, messages: [ChatMessage], maxTokens: Int?, yield: (String) -> Void) async throws {
         guard config.isUsable else { throw LLMError.notConfigured }
         let history: [JSONValue] = messages.map { ["role": .string($0.role.rawValue), "content": .string($0.content)] }
         let path: String
@@ -117,17 +128,17 @@ struct LLMClient: Sendable {
             path = "/v1/messages"
             body["system"] = .string(system)
             body["messages"] = .array(history)
-            body["max_tokens"] = .number(Double(maxTokens))
+            body["max_tokens"] = .number(Double(maxTokens ?? Self.anthropicMaxTokens))
         case .chatCompletions:
             path = "/chat/completions"
             body["messages"] = .array([["role": "system", "content": .string(system)]] + history)
-            body["max_tokens"] = .number(Double(maxTokens))
+            if let maxTokens { body["max_tokens"] = .number(Double(maxTokens)) }
         case .responses:
             path = "/responses"
             body["instructions"] = .string(system)
             body["input"] = .array(history)
             body["store"] = false
-            body["max_output_tokens"] = .number(Double(maxTokens))
+            if let maxTokens { body["max_output_tokens"] = .number(Double(maxTokens)) }
         }
         guard let url = URL(string: base + path) else { throw LLMError.invalidURL }
 

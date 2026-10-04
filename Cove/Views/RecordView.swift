@@ -184,7 +184,7 @@ struct RecordView: View {
                     } else if let updatedAt = notes.updatedAt {
                         Text("更新于 \(updatedAt.formatted(date: .omitted, time: .standard))")
                     } else if notes.isAvailable {
-                        Text("说到一定内容后自动生成，约每半分钟更新一次。")
+                        Text("说到一定内容后自动生成，按设置里的刷新档位逐段追加。")
                     } else {
                         Text("还没有可用的模型接口。请到设置 → 模型接口添加。")
                     }
@@ -200,9 +200,11 @@ struct RecordView: View {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
                 MarkdownView(markdown: Citations.stripped(notes.notes))
+                Color.clear.frame(height: 1).id("end")
             }
             .padding()
         }
+        .defaultScrollAnchor(.bottom)
     }
 
     private var controls: some View {

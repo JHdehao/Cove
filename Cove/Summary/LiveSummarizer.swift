@@ -45,7 +45,11 @@ final class LiveSummarizer {
         let lines = Summarizer.transcriptLines(segments)[covered..<upTo].joined(separator: "\n")
         let previous = notes
         let system = Self.system(language: language, glossary: glossary)
-        let message = (previous.isEmpty ? "（还没有笔记）" : "当前笔记：\n\(previous)") + "\n\n新增转录：\n\(lines)"
+        // Notes grow: each update appends a block for the new stretch, headed by its time span.
+        let lastBlock = previous.components(separatedBy: "\n#### ").last ?? ""
+        let message = (previous.isEmpty ? "" : "上一段笔记（供衔接，不要重复）：\n\(lastBlock)\n\n") + "新转录：\n\(lines)"
+        let head = (previous.isEmpty ? "" : previous + "\n\n")
+            + "#### \(clockString(fresh.first?.start ?? 0))–\(clockString(fresh.last?.end ?? 0))\n"
         isUpdating = true
         error = nil
         timedOut = false
@@ -60,9 +64,9 @@ final class LiveSummarizer {
             defer { isUpdating = false; watchdog.cancel() }
             do {
                 var draft = ""
-                for try await delta in LLMClient(provider, session: session).stream(system: system, messages: [.init(role: .user, content: message)], maxTokens: 8000) {
+                for try await delta in LLMClient(provider, session: session).stream(system: system, messages: [.init(role: .user, content: message)]) {
                     draft += delta
-                    notes = draft
+                    notes = head + draft
                 }
                 try Task.checkCancellation()
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -70,6 +74,7 @@ final class LiveSummarizer {
                     notes = previous
                     self.error = "模型这次没有返回内容（可能思考用完了输出额度），稍后会再试。可换不带思考的模型。"
                 } else {
+                    notes = head + draft.trimmingCharacters(in: .whitespacesAndNewlines)
                     covered = upTo
                 }
                 updatedAt = .now
@@ -95,21 +100,15 @@ final class LiveSummarizer {
 
     private static func system(language: SummaryLanguage, glossary: String) -> String {
         var prompt = """
-        你在会议进行中实时记笔记。给你当前笔记和刚转录出的新内容，输出更新后的完整笔记（Markdown），只输出笔记本身。
-
-        结构固定为：
-        ## 正在讨论
-        一两句话说明眼下的话题。
-        ## 要点
-        ## 决策
-        ## 待办
-        ## 疑问
+        你在会议进行中实时记笔记。给你刚转录出的一段新内容（可能附上一段笔记供衔接），只为这段新内容写笔记，它会追加在已有笔记后面。
 
         规则：
+        - Markdown 列表，2～6 条短句，只写这段里的新信息，不重复上一段笔记。
+        - 决策、待办、疑问分别以「**决策**：」「**待办**：」「**疑问**：」开头，其余是普通要点。
+        - 每条末尾用 [#编号] 标注出处（转录行首方括号里的数字）。
         - 只依据转录，不编造；转录有错字时按上下文理解。
-        - 保留旧笔记里仍然成立的内容，合并重复，修正被新内容推翻的。
-        - 每条结论末尾用 [#编号] 标注出处（转录行首方括号里的数字）。
-        - 简短，每节最多 6 条；没有内容的节写「无」。
+        - 这段只有寒暄、杂音等没有实质内容时，只输出「- （无新内容）」。
+        - 只输出列表本身。
         - \(language.instruction)
         """
         let terms = glossary.trimmingCharacters(in: .whitespacesAndNewlines)
