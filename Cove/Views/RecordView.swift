@@ -200,11 +200,11 @@ struct RecordView: View {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
                 MarkdownView(markdown: Citations.stripped(notes.notes))
-                Color.clear.frame(height: 1).id("end")
             }
             .padding()
         }
         .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
     }
 
     private var controls: some View {
