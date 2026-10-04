@@ -20,6 +20,7 @@ final class LiveSummarizer {
     private var covered = 0
     private var session = UUID().uuidString
     private var task: Task<Void, Never>?
+    private var timedOut = false
 
     func configure(provider: ProviderConfig?, language: SummaryLanguage, glossary: String, refresh: LiveRefresh) {
         self.provider = provider
@@ -47,18 +48,37 @@ final class LiveSummarizer {
         let message = (previous.isEmpty ? "（还没有笔记）" : "当前笔记：\n\(previous)") + "\n\n新增转录：\n\(lines)"
         isUpdating = true
         error = nil
+        timedOut = false
+        // A stalled stream would otherwise hold `isUpdating` and block every later update.
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(120))
+            guard !Task.isCancelled, let self, self.isUpdating else { return }
+            self.timedOut = true
+            self.task?.cancel()
+        }
         task = Task {
-            defer { isUpdating = false }
+            defer { isUpdating = false; watchdog.cancel() }
             do {
                 var draft = ""
-                for try await delta in LLMClient(provider, session: session).stream(system: system, messages: [.init(role: .user, content: message)], maxTokens: 2000) {
+                for try await delta in LLMClient(provider, session: session).stream(system: system, messages: [.init(role: .user, content: message)], maxTokens: 8000) {
                     draft += delta
                     notes = draft
                 }
-                if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { notes = previous } else { covered = upTo }
+                try Task.checkCancellation()
+                if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    // Thinking models can spend the whole budget before writing a word.
+                    notes = previous
+                    self.error = "模型这次没有返回内容（可能思考用完了输出额度），稍后会再试。可换不带思考的模型。"
+                } else {
+                    covered = upTo
+                }
                 updatedAt = .now
             } catch is CancellationError {
                 notes = previous
+                if timedOut {
+                    self.error = "这次更新超过 2 分钟没完成，已放弃，稍后会再试。"
+                    updatedAt = .now
+                }
             } catch {
                 notes = previous
                 self.error = error.localizedDescription

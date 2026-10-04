@@ -168,6 +168,7 @@ struct LLMClient: Sendable {
             }
             switch config.wire {
             case .anthropic:
+                if event["type"]?.string == "message_stop" { return }
                 if event["type"]?.string == "content_block_delta", event["delta"]?["type"]?.string == "text_delta",
                    let text = event["delta"]?["text"]?.string { yield(text) }
             case .chatCompletions:
@@ -176,6 +177,8 @@ struct LLMClient: Sendable {
                 switch event["type"]?.string {
                 case "response.output_text.delta":
                     if let text = event["delta"]?.string { yield(text) }
+                case "response.completed":
+                    return
                 case "response.failed":
                     throw LLMError.service(event["response"]?["error"]?["message"]?.string ?? "生成失败。")
                 default:
