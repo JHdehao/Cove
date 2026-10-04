@@ -44,13 +44,14 @@ final class Summarizer {
         cancel()
         let segments = meeting.segments
         let markers = meeting.markers
+        let session = meeting.id.uuidString
         text = ""
         error = nil
         isRunning = true
         task = Task {
             defer { isRunning = false; phase = "" }
             do {
-                let client = LLMClient(provider)
+                let client = LLMClient(provider, session: session)
                 let lines = Self.transcriptLines(segments)
                 let chunks = Self.chunk(lines, budget: max(4000, provider.contextChars))
                 var material: String

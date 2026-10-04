@@ -36,10 +36,13 @@ enum LLMError: LocalizedError {
 struct LLMClient: Sendable {
     let config: ProviderConfig
     var apiKey: String
+    /// Stable per conversation; OpenCode wants it in `x-opencode-session` for routing and prompt caching.
+    var session: String?
 
-    init(_ config: ProviderConfig) {
+    init(_ config: ProviderConfig, session: String? = nil) {
         self.config = config
         apiKey = config.apiKey
+        self.session = session
     }
 
     private var base: String {
@@ -59,6 +62,7 @@ struct LLMClient: Sendable {
         case .chatCompletions, .responses:
             if !apiKey.isEmpty { headers["Authorization"] = "Bearer \(apiKey)" }
         }
+        if let session, config.host.hasSuffix("opencode.ai") { headers["x-opencode-session"] = session }
         return headers
     }
 

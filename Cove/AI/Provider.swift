@@ -49,6 +49,9 @@ struct ProviderPreset: Identifiable, Sendable {
                        contextChars: 150_000),
         ProviderPreset(id: "glm", name: "智谱 GLM（Z.ai）", baseURL: "https://api.z.ai/api/paas/v4", wire: .chatCompletions,
                        contextChars: 150_000),
+        ProviderPreset(id: "opencode-go", name: "OpenCode Go", baseURL: "https://opencode.ai/zen/go/v1", wire: .chatCompletions,
+                       contextChars: 150_000,
+                       note: "订阅 Go 后在 OpenCode 控制台取 Key。各模型请求格式不同，选模型时自动切换：MiniMax、Qwen 走 Anthropic Messages，Grok、Muse、GPT 走 Responses，其余走 Chat Completions。"),
         ProviderPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", wire: .chatCompletions,
                        contextChars: 150_000),
         ProviderPreset(id: "ollama", name: "Ollama（本地）", baseURL: "http://omarchy:11434/v1", wire: .chatCompletions,
@@ -63,6 +66,14 @@ struct ProviderPreset: Identifiable, Sendable {
     ]
 
     static func named(_ id: String) -> ProviderPreset? { all.first { $0.id == id } }
+
+    /// OpenCode Go serves each model family in its own format (opencode.ai/docs/go).
+    static func openCodeGoWire(for model: String) -> WireFormat {
+        let id = model.lowercased()
+        if ["minimax", "qwen"].contains(where: id.hasPrefix) { return .anthropic }
+        if ["grok", "muse", "gpt"].contains(where: id.hasPrefix) { return .responses }
+        return .chatCompletions
+    }
 }
 
 /// One saved endpoint. The API key lives in the Keychain, keyed by `id`.

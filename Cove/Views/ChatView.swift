@@ -108,7 +108,7 @@ struct ChatView: View {
         task = Task {
             defer { isSending = false }
             do {
-                for try await delta in LLMClient(provider).stream(system: system, messages: history) { reply += delta }
+                for try await delta in LLMClient(provider, session: "\(meeting.id.uuidString)-chat").stream(system: system, messages: history) { reply += delta }
                 if !reply.isEmpty { meeting.chat.append(ChatMessage(role: .assistant, content: reply)) }
             } catch is CancellationError {
                 if !reply.isEmpty { meeting.chat.append(ChatMessage(role: .assistant, content: reply)) }

@@ -20,12 +20,14 @@ final class LiveSummarizer {
     private var language: SummaryLanguage = .auto
     private var glossary = ""
     private var covered = 0
+    private var session = UUID().uuidString
     private var task: Task<Void, Never>?
 
     func configure(provider: ProviderConfig?, language: SummaryLanguage, glossary: String) {
         self.provider = provider
         self.language = language
         self.glossary = glossary
+        session = UUID().uuidString
     }
 
     var isAvailable: Bool { provider?.isUsable == true }
@@ -49,7 +51,7 @@ final class LiveSummarizer {
             defer { isUpdating = false }
             do {
                 var draft = ""
-                for try await delta in LLMClient(provider).stream(system: system, messages: [.init(role: .user, content: message)], maxTokens: 2000) {
+                for try await delta in LLMClient(provider, session: session).stream(system: system, messages: [.init(role: .user, content: message)], maxTokens: 2000) {
                     draft += delta
                     notes = draft
                 }

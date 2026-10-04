@@ -109,6 +109,9 @@ struct ProviderEditView: View {
                 }
             }
             .onAppear { key = config.apiKey }
+            .onChange(of: config.model) { _, model in
+                if config.presetID == "opencode-go" { config.wire = ProviderPreset.openCodeGoWire(for: model) }
+            }
         }
     }
 
