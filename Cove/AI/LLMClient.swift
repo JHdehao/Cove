@@ -37,9 +37,10 @@ struct LLMClient: Sendable {
     let config: ProviderConfig
     var apiKey: String
     /// Stable per conversation; OpenCode wants it in `x-opencode-session` for routing and prompt caching.
-    var session: String?
+    var session: String
 
-    init(_ config: ProviderConfig, session: String? = nil) {
+    /// Without a session each client gets its own: OpenCode Go rejects requests that lack one (400).
+    init(_ config: ProviderConfig, session: String = UUID().uuidString) {
         self.config = config
         apiKey = config.apiKey
         self.session = session
@@ -62,7 +63,7 @@ struct LLMClient: Sendable {
         case .chatCompletions, .responses:
             if !apiKey.isEmpty { headers["Authorization"] = "Bearer \(apiKey)" }
         }
-        if let session, config.host.hasSuffix("opencode.ai") { headers["x-opencode-session"] = session }
+        if config.host.hasSuffix("opencode.ai") { headers["x-opencode-session"] = session }
         return headers
     }
 
