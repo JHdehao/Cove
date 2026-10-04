@@ -7,5 +7,7 @@ read -r URL; read -r NOTES
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 curl -sfL -m 300 -o "$d/a.zip" "$URL"
 unzip -q -o "$d/a.zip" -d "$d"
+# 和 Conch 放同一个目录：手机上 Conch「从服务器下载」经 SFTP 直连 oci 取包，不经 Cloudflare
+cp "$d/Cove-unsigned.ipa" ~/conch-ipa/Cove-unsigned.ipa
 SOURCE_DIR=~/conch-www/$T/cove SOURCE_URL=https://jhai.cc.cd/$T/cove ICON=~/cove-icon-1024.png \
   python3 ~/cove-sidestore-source.py "$d/Cove-unsigned.ipa" "$SHA" "$NOTES"
