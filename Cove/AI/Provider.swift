@@ -51,7 +51,7 @@ struct ProviderPreset: Identifiable, Sendable {
                        contextChars: 150_000),
         ProviderPreset(id: "opencode-go", name: "OpenCode Go", baseURL: "https://opencode.ai/zen/go/v1", wire: .chatCompletions,
                        contextChars: 150_000,
-                       note: "订阅 Go 后在 OpenCode 控制台取 Key。各模型请求格式不同，选模型时自动切换：MiniMax、Qwen 走 Anthropic Messages，Grok、Muse、GPT 走 Responses，其余走 Chat Completions。"),
+                       note: "订阅 Go 后在 OpenCode 控制台取 Key。选模型时按官方文档自动切换请求格式，可以手动改：MiniMax、Qwen 走 Anthropic Messages，Grok、Muse、GPT 走 Responses，其余走 Chat Completions。"),
         ProviderPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", wire: .chatCompletions,
                        contextChars: 150_000),
         ProviderPreset(id: "ollama", name: "Ollama（本地）", baseURL: "http://omarchy:11434/v1", wire: .chatCompletions,
