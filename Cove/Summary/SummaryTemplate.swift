@@ -95,4 +95,28 @@ enum SummaryKey {
     static let glossary = "summary.glossary"
     /// Write the minutes as soon as a transcript is ready.
     static let auto = "summary.auto"
+    static let liveRefresh = "summary.liveRefresh"
+}
+
+/// How often the running notes catch up while recording.
+enum LiveRefresh: String, CaseIterable, Identifiable {
+    case fast, standard, slow, manual
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .fast: "快（约 10 秒）"
+        case .standard: "标准（约 20 秒）"
+        case .slow: "省流量（约 45 秒）"
+        case .manual: "仅手动"
+        }
+    }
+    /// New speech needed before an update, and the least time between updates; nil = only on demand.
+    var threshold: (chars: Int, interval: TimeInterval)? {
+        switch self {
+        case .fast: (60, 10)
+        case .standard: (120, 20)
+        case .slow: (300, 45)
+        case .manual: nil
+        }
+    }
 }

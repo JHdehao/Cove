@@ -12,9 +12,7 @@ final class LiveSummarizer {
     private(set) var updatedAt: Date?
     var error: String?
 
-    /// New speech needed before an update, and the least time between updates.
-    private let minimumChars = 280
-    private let minimumInterval: TimeInterval = 30
+    private var refresh = LiveRefresh.standard
 
     private var provider: ProviderConfig?
     private var language: SummaryLanguage = .auto
@@ -23,8 +21,9 @@ final class LiveSummarizer {
     private var session = UUID().uuidString
     private var task: Task<Void, Never>?
 
-    func configure(provider: ProviderConfig?, language: SummaryLanguage, glossary: String) {
+    func configure(provider: ProviderConfig?, language: SummaryLanguage, glossary: String, refresh: LiveRefresh) {
         self.provider = provider
+        self.refresh = refresh
         self.language = language
         self.glossary = glossary
         session = UUID().uuidString
@@ -37,7 +36,8 @@ final class LiveSummarizer {
         guard let provider, provider.isUsable, !isUpdating, covered < segments.count else { return }
         let fresh = segments[covered...]
         let chars = fresh.reduce(0) { $0 + $1.text.count }
-        let due = force || (chars >= minimumChars && (updatedAt.map { Date().timeIntervalSince($0) >= minimumInterval } ?? true))
+        let waited = { (interval: TimeInterval) in self.updatedAt.map { Date().timeIntervalSince($0) >= interval } ?? true }
+        let due = force || refresh.threshold.map { chars >= $0.chars && waited($0.interval) } ?? false
         guard due else { return }
 
         let upTo = segments.count

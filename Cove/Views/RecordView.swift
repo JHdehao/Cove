@@ -20,6 +20,7 @@ struct RecordView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SummaryKey.language) private var language = SummaryLanguage.auto.rawValue
     @AppStorage(SummaryKey.glossary) private var glossary = ""
+    @AppStorage(SummaryKey.liveRefresh) private var liveRefresh = LiveRefresh.standard.rawValue
     @State private var recorder = Recorder()
     @State private var transcript = LiveTranscript()
     @State private var notes = LiveSummarizer()
@@ -242,7 +243,8 @@ struct RecordView: View {
     // MARK: Flow
 
     private func begin() async {
-        notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary)
+        notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary,
+                        refresh: LiveRefresh(rawValue: liveRefresh) ?? .standard)
         if Transcription.isReady { startEngine() }
         await recorder.start()
     }

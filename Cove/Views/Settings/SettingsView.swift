@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(SummaryKey.customPrompt) private var customPrompt = ""
     @AppStorage(SummaryKey.glossary) private var glossary = ""
     @AppStorage(SummaryKey.auto) private var autoSummarize = true
+    @AppStorage(SummaryKey.liveRefresh) private var liveRefresh = LiveRefresh.standard.rawValue
     @State private var store = ProviderStore.shared
     @State private var models = SpeechModels.shared
     @AppStorage(SpeechKey.engine) private var speechEngine = TranscriptionEngine.open.rawValue
@@ -90,6 +91,9 @@ struct SettingsView: View {
                     }
                     Picker("纪要语言", selection: $language) {
                         ForEach(SummaryLanguage.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                    Picker("实时纪要刷新", selection: $liveRefresh) {
+                        ForEach(LiveRefresh.allCases) { Text($0.label).tag($0.rawValue) }
                     }
                     NavigationLink("自定义模板") {
                         TextPage(title: "自定义模板", text: $customPrompt,
