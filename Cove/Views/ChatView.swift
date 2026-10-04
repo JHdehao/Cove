@@ -101,8 +101,10 @@ struct ChatView: View {
         input = ""
         error = nil
         meeting.chat.append(ChatMessage(role: .user, content: question))
-        let history = meeting.chat
-        let system = Self.system(meeting, budget: provider.contextChars)
+        // Recent turns are enough to follow up on; older ones only cost tokens.
+        let history = Array(meeting.chat.suffix(12))
+        let query = meeting.chat.filter { $0.role == .user }.suffix(2).map(\.content).joined(separator: " ")
+        let system = Self.system(meeting, query: query, budget: provider.contextChars)
         isSending = true
         reply = ""
         task = Task {
@@ -119,13 +121,18 @@ struct ChatView: View {
         }
     }
 
-    private static func system(_ meeting: Meeting, budget: Int) -> String {
-        var transcript = Summarizer.transcriptLines(meeting.segments).joined(separator: "\n")
+    /// Whole transcripts up to this length go along as they are; longer ones send only the lines
+    /// that match the question, with their neighbours. The minutes cover the rest.
+    private static let fullTranscriptChars = 6000
+    private static let excerptChars = 4000
+
+    private static func system(_ meeting: Meeting, query: String, budget: Int) -> String {
+        let lines = Summarizer.transcriptLines(meeting.segments)
+        var transcript = lines.joined(separator: "\n")
         var note = ""
-        if transcript.count > budget {
-            // Too long for one request: the minutes carry the rest.
-            transcript = String(transcript.prefix(budget))
-            note = "（转录过长，只附了开头部分，其余请依据纪要。）"
+        if transcript.count > min(budget, fullTranscriptChars) {
+            transcript = excerpt(lines, texts: meeting.segments.map(\.text), query: query, budget: min(budget, excerptChars))
+            note = "（只附了和问题相关的片段，「…」表示中间省略；片段里找不到的，依据纪要回答）"
         }
         return """
         你是会议助手，依据下面这场会议的转录和纪要回答用户的问题。
@@ -141,5 +148,40 @@ struct ChatView: View {
         转录\(note)：
         \(transcript)
         """
+    }
+
+    /// Lines sharing the most character pairs with the question (rare pairs count more, so
+    /// names and terms beat filler like 「我们」), each with a line either side, in meeting order.
+    private static func excerpt(_ lines: [String], texts: [String], query: String, budget: Int) -> String {
+        func pairs(_ text: String) -> Set<String> {
+            let chars = Array(text.lowercased().filter { $0.isLetter || $0.isNumber })
+            return chars.count < 2 ? Set(chars.map { String($0) }) : Set((0..<chars.count - 1).map { String(chars[$0...$0 + 1]) })
+        }
+        let wanted = pairs(query)
+        let linePairs = texts.map(pairs)
+        var frequency: [String: Int] = [:]
+        for set in linePairs { for pair in set.intersection(wanted) { frequency[pair, default: 0] += 1 } }
+        let total = Double(max(1, texts.count))
+        let scores = linePairs.map { set in set.intersection(wanted).reduce(0.0) { $0 + log(total / Double(frequency[$1] ?? 1)) } }
+
+        var picked = Set<Int>()
+        var used = 0
+        for index in scores.indices.sorted(by: { scores[$0] > scores[$1] }) where scores[index] > 0 {
+            for neighbour in max(0, index - 1)...min(lines.count - 1, index + 1) where !picked.contains(neighbour) {
+                guard used + lines[neighbour].count <= budget else { continue }
+                picked.insert(neighbour)
+                used += lines[neighbour].count + 1
+            }
+            if used >= budget { break }
+        }
+        guard !picked.isEmpty else { return "（转录里没有找到和问题直接相关的句子）" }
+        var out: [String] = []
+        var last = -2
+        for index in picked.sorted() {
+            if index != last + 1 { out.append("…") }
+            out.append(lines[index])
+            last = index
+        }
+        return out.joined(separator: "\n")
     }
 }
