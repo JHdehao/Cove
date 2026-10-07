@@ -33,6 +33,8 @@ jobs:
             xcrun simctl bootstatus "$dev" -b
             xcrun simctl status_bar "$dev" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
             xcrun simctl install "$dev" "$APP"
+            # 首次开机的系统通知（如「Ready for Apple Intelligence」）会挡住标题：先等它消失
+            sleep 45
             for mode in light dark; do
               xcrun simctl ui "$dev" appearance $mode
               n=0

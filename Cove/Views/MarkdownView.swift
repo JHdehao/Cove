@@ -18,7 +18,7 @@ struct MarkdownView: View {
 
     private enum Block {
         case heading(Int, String)
-        case bullet(String, checkbox: Bool?, indent: Int)
+        case bullet(String, checkbox: Bool?, indent: Int, ordered: Bool = false)
         case quote(String)
         case paragraph(String)
         case rule
@@ -47,7 +47,7 @@ struct MarkdownView: View {
                 blocks.append(.bullet(String(line.dropFirst(2)), checkbox: nil, indent: indent))
             } else if let match = line.firstMatch(of: #/^(\d+)[.)]\s+(.*)$/#) {
                 flush()
-                blocks.append(.bullet("\(match.1). \(match.2)", checkbox: nil, indent: indent))
+                blocks.append(.bullet("\(match.1). \(match.2)", checkbox: nil, indent: indent, ordered: true))
             } else if line.hasPrefix(">") {
                 flush()
                 blocks.append(.quote(line.dropFirst().trimmingCharacters(in: .whitespaces)))
@@ -70,12 +70,13 @@ struct MarkdownView: View {
                 .font(level <= 1 ? .system(.title2, design: .serif).weight(.semibold)
                       : level == 2 ? .system(.title3, design: .serif).weight(.semibold) : .headline)
                 .padding(.top, level <= 2 ? 8 : 4)
-        case .bullet(let text, let checkbox, let indent):
+        case .bullet(let text, let checkbox, let indent, let ordered):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let checkbox {
                     Image(systemName: checkbox ? "checkmark.square" : "square")
                         .foregroundStyle(CoveColor.accent)
-                } else if text.first?.isNumber == true {
+                } else if ordered {
+                    // "1. …": the number is the marker.
                     EmptyView()
                 } else {
                     Text("•").foregroundStyle(CoveColor.accent)
