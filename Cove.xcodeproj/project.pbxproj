@@ -190,6 +190,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "录制会议需要使用麦克风。录音只保存在本机。";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接局域网或 Tailscale 上的本地模型接口（如 Ollama）。";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把会议纪要里的待办导入提醒事项。";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "录音开始时读取正在进行的日历事件，带入会议标题和参会人。只在你于设置里打开后使用。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -228,6 +229,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "录制会议需要使用麦克风。录音只保存在本机。";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接局域网或 Tailscale 上的本地模型接口（如 Ollama）。";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把会议纪要里的待办导入提醒事项。";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "录音开始时读取正在进行的日历事件，带入会议标题和参会人。只在你于设置里打开后使用。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

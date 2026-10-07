@@ -1,4 +1,3 @@
-import EventKit
 import SwiftUI
 
 /// One meeting: the minutes, the transcript and a chat about it, with the recording
@@ -12,7 +11,8 @@ struct MeetingDetailView: View {
     @AppStorage(SummaryKey.customPrompt) private var customPrompt = ""
     @AppStorage(SummaryKey.glossary) private var glossary = ""
     @AppStorage(SummaryKey.auto) private var autoSummarize = true
-    @State private var tab = Tab.minutes
+    @AppStorage(SpeakerKey.auto) private var autoDiarize = true
+    @State private var tab = Tab(rawValue: UserDefaults.standard.string(forKey: "CoveTab") ?? "") ?? .minutes
     @State private var summarizer = Summarizer()
     @State private var player = AudioPlayer()
     @State private var models = SpeechModels.shared
@@ -24,6 +24,11 @@ struct MeetingDetailView: View {
     @State private var editingTitle = false
     @State private var notice: String?
     @State private var providers = ProviderStore.shared
+    @State private var speakerModels = SpeakerModels.shared
+    @State private var diarizing = false
+    @State private var diarizeError: String?
+    @State private var editingSegment: Int?
+    @State private var reviewingActions = false
 
     enum Tab: String, CaseIterable {
         case minutes = "纪要"
@@ -42,7 +47,10 @@ struct MeetingDetailView: View {
 
             switch tab {
             case .minutes: minutes
-            case .transcript: TranscriptView(meeting: meeting, player: player, focused: $focusedSegment, rename: { renaming = $0; newName = $0 })
+            case .transcript:
+                if diarizing { diarizeStatus.padding(.horizontal) }
+                TranscriptView(meeting: meeting, player: player, focused: $focusedSegment,
+                               rename: { renaming = $0; newName = $0 }, edit: { editingSegment = $0 })
             case .chat: ChatView(meeting: meeting)
             }
 
@@ -62,12 +70,28 @@ struct MeetingDetailView: View {
             // An imported or uncaptioned recording, or one whose captions stopped partway: transcribe it now.
             if meeting.segments.isEmpty || meeting.needsRetranscribe, meeting.audioURL != nil, Transcription.isReady, transcribing == nil {
                 transcribe()
+            } else if shouldDiarize {
+                diarize { autoSummarizeIfDue() }
+            } else {
+                autoSummarizeIfDue()
             }
-            if autoSummarize, meeting.summary.isEmpty, !meeting.segments.isEmpty, providers.active?.isUsable == true,
-               !summarizer.isRunning { summarize() }
         }
         .onDisappear {
             player.stop()
+        }
+        .sheet(item: Binding(get: { editingSegment.map(EditIndex.init) }, set: { editingSegment = $0?.id })) { item in
+            let segments = meeting.segments
+            if segments.indices.contains(item.id) {
+                SegmentEditor(segment: segments[item.id], speakers: Array(Set(segments.compactMap(\.speaker))).sorted()) { edited in
+                    var all = meeting.segments
+                    guard all.indices.contains(item.id) else { return }
+                    all[item.id] = edited
+                    meeting.segments = all
+                }
+            }
+        }
+        .sheet(isPresented: $reviewingActions) {
+            ActionItemsSheet(meetingTitle: meeting.title, items: Summarizer.actionItems(in: meeting.summary))
         }
         .alert("重命名说话人", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("名字", text: $newName)
@@ -77,7 +101,10 @@ struct MeetingDetailView: View {
         .alert("会议标题", isPresented: $editingTitle) {
             TextField("标题", text: $newName)
             Button("取消", role: .cancel) {}
-            Button("好") { meeting.title = newName }
+            Button("好") {
+                meeting.title = newName
+                meeting.titleIsFixed = true
+            }
         }
         .alert("", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button("好") {}
@@ -94,6 +121,8 @@ struct MeetingDetailView: View {
     private var minutes: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if diarizing { diarizeStatus }
+                if let diarizeError { Text(diarizeError).font(.caption).foregroundStyle(.red) }
                 if meeting.segments.isEmpty {
                     untranscribed
                 } else if summarizer.isRunning || !summarizer.text.isEmpty {
@@ -228,11 +257,39 @@ struct MeetingDetailView: View {
                 if meeting.audioURL != nil, Transcription.isReady, transcribing == nil {
                     Button { transcribe() } label: { Label("重新转录", systemImage: "waveform") }
                 }
+                if meeting.audioURL != nil, !meeting.segments.isEmpty, !diarizing {
+                    if speakerModels.isInstalled {
+                        Menu {
+                            Button("自动判断人数") { diarize() }
+                            ForEach(2...8, id: \.self) { count in
+                                Button("\(count) 人") { diarize(speakers: count) }
+                            }
+                        } label: {
+                            Label("识别说话人", systemImage: "person.2.wave.2")
+                        }
+                    } else {
+                        Button {
+                            Task {
+                                await speakerModels.download()
+                                if speakerModels.isInstalled { diarize() } else { diarizeError = speakerModels.error }
+                            }
+                        } label: {
+                            Label("识别说话人（先下载 \(SpeakerModels.totalMB) MB 模型）", systemImage: "person.2.wave.2")
+                        }
+                    }
+                }
                 if !Summarizer.actionItems(in: meeting.summary).isEmpty {
-                    Button { exportReminders() } label: { Label("待办导入提醒事项", systemImage: "checklist") }
+                    Button { reviewingActions = true } label: { Label("待办导入提醒事项", systemImage: "checklist") }
                 }
                 ShareLink(item: Exporter.markdown(meeting), subject: Text(meeting.title)) {
                     Label("分享 Markdown", systemImage: "square.and.arrow.up")
+                }
+                if AutoExport.folder != nil, !meeting.summary.isEmpty {
+                    Button {
+                        notice = AutoExport.save(meeting) ?? "已导出到「\(AutoExport.folder?.lastPathComponent ?? "")」。"
+                    } label: {
+                        Label("导出到文件夹", systemImage: "folder")
+                    }
                 }
                 ShareLink(item: Exporter.srt(meeting)) {
                     Label("分享字幕（SRT）", systemImage: "captions.bubble")
@@ -273,8 +330,9 @@ struct MeetingDetailView: View {
                 }
                 meeting.segments = segments
                 meeting.needsRetranscribe = false
+                meeting.diarizedAt = nil
                 transcribing = nil
-                if autoSummarize, !segments.isEmpty, providers.active?.isUsable == true { summarize() }
+                if shouldDiarize { diarize { autoSummarizeIfDue() } } else { autoSummarizeIfDue() }
             } catch {
                 transcribing = nil
                 transcribeError = "转录失败：\(error.localizedDescription)"
@@ -299,29 +357,46 @@ struct MeetingDetailView: View {
         renaming = nil
     }
 
-    private func exportReminders() {
-        let items = Summarizer.actionItems(in: meeting.summary)
-        Task {
-            let store = EKEventStore()
-            do {
-                guard try await store.requestFullAccessToReminders() else {
-                    notice = "没有提醒事项的权限。"
-                    return
-                }
-                for item in items {
-                    let reminder = EKReminder(eventStore: store)
-                    reminder.title = item.replacingOccurrences(of: " — 待定", with: "")
-                    reminder.notes = "来自会议：\(meeting.title)"
-                    reminder.calendar = store.defaultCalendarForNewReminders()
-                    try store.save(reminder, commit: false)
-                }
-                try store.commit()
-                notice = "已导入 \(items.count) 条待办。"
-            } catch {
-                notice = "导入失败：\(error.localizedDescription)"
-            }
+    /// Speakers are worked out once, automatically, when their models are on the phone.
+    private var shouldDiarize: Bool {
+        autoDiarize && speakerModels.isInstalled && meeting.diarizedAt == nil && meeting.audioURL != nil && !meeting.segments.isEmpty
+            && !meeting.segments.contains { $0.speaker != nil }
+    }
+
+    private func autoSummarizeIfDue() {
+        if autoSummarize, meeting.summary.isEmpty, !meeting.segments.isEmpty, providers.active?.isUsable == true, !summarizer.isRunning {
+            summarize()
         }
     }
+
+    private var diarizeStatus: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("正在本机识别说话人…（1 小时的会议约需 1–3 分钟）")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private func diarize(speakers count: Int? = nil, then next: (() -> Void)? = nil) {
+        guard let url = meeting.audioURL, !diarizing else { return }
+        diarizing = true
+        diarizeError = nil
+        Task {
+            do {
+                meeting.segments = try await Diarizer.label(meeting.segments, audio: url, speakers: count)
+            } catch {
+                diarizeError = "识别说话人失败：\(error.localizedDescription)"
+            }
+            meeting.diarizedAt = .now
+            diarizing = false
+            next?()
+        }
+    }
+}
+
+private struct EditIndex: Identifiable {
+    let id: Int
 }
 
 /// Play / pause, position and speed for the recording.

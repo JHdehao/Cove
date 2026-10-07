@@ -44,6 +44,7 @@ final class Summarizer {
         cancel()
         let segments = meeting.segments
         let markers = meeting.markers
+        let attendees = meeting.attendees
         let session = meeting.id.uuidString
         text = ""
         error = nil
@@ -81,6 +82,9 @@ final class Summarizer {
                         + notes.enumerated().map { "### 第 \($0.offset + 1) 段\n\($0.element)" }.joined(separator: "\n\n")
                 }
                 material += Self.markerNotes(markers)
+                if !attendees.isEmpty {
+                    material += "\n\n参会人（来自日历邀请）：\(attendees)。转录里的「说话人 N」只有在内容明确（如自我介绍、被点名回应）时才对应到具体的人，不确定就保留「说话人 N」。"
+                }
                 phase = "撰写纪要"
                 let system = Self.minutesSystem(template: template, language: language, glossary: glossary)
                 for try await delta in client.stream(system: system, messages: [.init(role: .user, content: material)]) {
@@ -91,7 +95,8 @@ final class Summarizer {
                 meeting.summaryTemplateID = template.id
                 meeting.summaryModel = provider.model
                 meeting.summarizedAt = .now
-                if let title = Self.title(in: text) { meeting.title = title }
+                if !meeting.titleIsFixed, let title = Self.title(in: text) { meeting.title = title }
+                if let problem = AutoExport.save(meeting) { self.error = problem }
             } catch is CancellationError {
             } catch {
                 self.error = error.localizedDescription

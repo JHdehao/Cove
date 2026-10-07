@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -15,6 +16,12 @@ struct SettingsView: View {
     @AppStorage(SpeechKey.appleLanguage) private var appleLanguage = AppleSpeechLanguage.mandarin.rawValue
     @State private var adding = false
     @State private var consent = AIConsent.shared
+    @State private var speakers = SpeakerModels.shared
+    @AppStorage(SpeakerKey.auto) private var autoDiarize = true
+    @AppStorage(CalendarLink.key) private var calendarLink = false
+    @State private var exportFolder = AutoExport.folder?.lastPathComponent
+    @State private var choosingFolder = false
+    @State private var settingsError: String?
     @State private var editing: ProviderConfig?
 
     var body: some View {
@@ -85,6 +92,47 @@ struct SettingsView: View {
                 .coveCard()
 
                 Section {
+                    if speakers.isInstalled {
+                        Toggle("会后自动识别说话人", isOn: $autoDiarize)
+                        Button("删除说话人模型", role: .destructive) { speakers.remove() }
+                    } else if speakers.isDownloading {
+                        ProgressView(value: speakers.progress) { Text("正在下载… \(Int(speakers.progress * 100))%") }
+                    } else {
+                        Button("下载说话人模型（约 \(SpeakerModels.totalMB) MB）") { Task { await speakers.download() } }
+                        if let error = speakers.error { Text(error).font(.caption).foregroundStyle(.red) }
+                    }
+                } header: {
+                    Text("说话人识别（本机）")
+                } footer: {
+                    Text("会后在手机上分出「说话人 1 / 2 / 3」，长按转录里的名字可改成真名。人数已知时，在会议页菜单里指定人数会更准。模型：pyannote 分割 + 3D-Speaker 声纹，开源。")
+                }
+                .coveCard()
+
+                Section {
+                    Toggle("从日历带入标题和参会人", isOn: Binding(get: { calendarLink }, set: { on in
+                        if on {
+                            Task { calendarLink = await CalendarLink.requestAccess() }
+                        } else {
+                            calendarLink = false
+                        }
+                    }))
+                    if let exportFolder {
+                        LabeledContent("自动导出到", value: exportFolder)
+                        Button("停止自动导出", role: .destructive) {
+                            AutoExport.clear()
+                            self.exportFolder = nil
+                        }
+                    } else {
+                        Button("自动导出纪要到文件夹…") { choosingFolder = true }
+                    }
+                } header: {
+                    Text("联动")
+                } footer: {
+                    Text("开录时如果日历里正好有会，会议用它的标题，参会人名单帮助纪要认人。自动导出：每次生成纪要后，把 Markdown 写进你选的文件夹（比如 iCloud 里的 Obsidian 库）。")
+                }
+                .coveCard()
+
+                Section {
                     Toggle("转录完成后自动生成纪要", isOn: $autoSummarize)
                     Picker("默认模板", selection: $templateID) {
                         ForEach(SummaryTemplate.builtIn) { Text($0.name).tag($0.id) }
@@ -148,6 +196,19 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                do {
+                    try AutoExport.setFolder(try result.get())
+                    exportFolder = AutoExport.folder?.lastPathComponent
+                } catch {
+                    settingsError = error.localizedDescription
+                }
+            }
+            .alert("出错了", isPresented: Binding(get: { settingsError != nil }, set: { if !$0 { settingsError = nil } })) {
+                Button("好") {}
+            } message: {
+                Text(settingsError ?? "")
             }
             .sheet(isPresented: $adding) { PresetPicker { editing = ProviderConfig(preset: $0) } }
             .sheet(item: $editing) { ProviderEditView(config: $0) }

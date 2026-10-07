@@ -125,7 +125,7 @@ final class SpeechModels {
     }
 
     /// Downloads to a temporary file, reporting bytes received.
-    private nonisolated static func fetch(_ url: URL, progress: @escaping @Sendable (Int64) -> Void) async throws -> URL {
+    nonisolated static func fetch(_ url: URL, progress: @escaping @Sendable (Int64) -> Void) async throws -> URL {
         let delegate = DownloadDelegate(progress: progress)
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }

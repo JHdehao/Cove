@@ -70,7 +70,13 @@ struct LibraryView: View {
                 importError = error.localizedDescription
             }
         }
-        .task { recovered = await Recovery.run(context) }
+        .task {
+            recovered = await Recovery.run(context)
+            // App Store screenshots: `-CoveDemo YES` opens the sample meeting (and `-CoveTab 转录` picks its tab).
+            if UserDefaults.standard.bool(forKey: "CoveDemo"), path.isEmpty {
+                path = [meetings.first { $0.title == SampleMeeting.title } ?? SampleMeeting.insert(into: context)]
+            }
+        }
         .alert("已恢复未结束的录音", isPresented: Binding(get: { recovered > 0 }, set: { if !$0 { recovered = 0 } })) {
             Button("好") {}
         } message: {
@@ -151,10 +157,14 @@ struct LibraryView: View {
                 .foregroundStyle(CoveColor.accent)
             Text("还没有会议")
                 .font(.system(.title3, design: .serif).weight(.semibold))
-            Text("点下方按钮开始录音，或从右上角导入转录文本。\n纪要由你在设置里配置的模型接口生成。")
+            Text("点下方按钮开始录音，或从右上角导入录音、转录文本。\n转录在手机上完成，纪要用你在设置里选的模型生成。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            Button("看看示例会议") { path = [SampleMeeting.insert(into: context)] }
+                .buttonStyle(.bordered)
+                .tint(CoveColor.accent)
+                .padding(.top, 4)
             Spacer()
         }
         .padding(32)

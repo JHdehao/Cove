@@ -52,6 +52,12 @@ final class Meeting {
     var isRecording: Bool = false
     /// Live captions stopped partway (the phone got too hot): transcribe the whole recording again.
     var needsRetranscribe: Bool = false
+    /// When speakers were last worked out (nil: not tried yet).
+    var diarizedAt: Date?
+    /// Who was invited, from the calendar event, "、"-separated.
+    var attendees: String = ""
+    /// The title came from the calendar or the user: summaries don't replace it.
+    var titleIsFixed: Bool = false
 
     init(title: String, createdAt: Date = .now) {
         self.title = title

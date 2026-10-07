@@ -341,6 +341,13 @@ struct RecordView: View {
         let meeting = Meeting(title: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))")
         meeting.audioFileName = "\(meeting.id.uuidString).m4a"
         meeting.isRecording = true
+        if let event = CalendarLink.currentEvent() {
+            if !event.title.isEmpty {
+                meeting.title = event.title
+                meeting.titleIsFixed = true
+            }
+            meeting.attendees = event.attendees.joined(separator: "、")
+        }
         await recorder.start(into: meeting.partsDirectory)
         guard recorder.isRecording else { return }
         context.insert(meeting)

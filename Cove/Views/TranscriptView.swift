@@ -1,12 +1,13 @@
 import SwiftUI
 
 /// The transcript, a line per utterance. Tap a line to hear it; the line playing is
-/// highlighted; long-press a speaker to rename them everywhere.
+/// highlighted; long-press a line to correct it or a speaker to rename them everywhere.
 struct TranscriptView: View {
     let meeting: Meeting
     let player: AudioPlayer
     @Binding var focused: Int?
     let rename: (String) -> Void
+    let edit: (Int) -> Void
 
     var body: some View {
         let segments = meeting.segments
@@ -65,6 +66,13 @@ struct TranscriptView: View {
         .onTapGesture {
             focused = index
             player.seek(segment.start)
+        }
+        .contextMenu {
+            Button { edit(index) } label: { Label("编辑这一句", systemImage: "pencil") }
+            if let speaker = segment.speaker {
+                Button { rename(speaker) } label: { Label("重命名「\(speaker)」", systemImage: "person.text.rectangle") }
+            }
+            Button { UIPasteboard.general.string = segment.text } label: { Label("拷贝", systemImage: "doc.on.doc") }
         }
     }
 }
