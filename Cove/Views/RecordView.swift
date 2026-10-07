@@ -1,3 +1,5 @@
+import Combine
+import SwiftData
 import SwiftUI
 
 /// What's been said so far in the meeting being recorded.
@@ -18,6 +20,9 @@ final class LiveTranscript {
 struct RecordView: View {
     let onFinish: (Meeting) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("record.consentAcknowledged") private var consentAcknowledged = false
     @AppStorage(SummaryKey.language) private var language = SummaryLanguage.auto.rawValue
     @AppStorage(SummaryKey.glossary) private var glossary = ""
     @AppStorage(SummaryKey.liveRefresh) private var liveRefresh = LiveRefresh.standard.rawValue
@@ -31,6 +36,13 @@ struct RecordView: View {
     @State private var tab = Tab.captions
     @State private var finishing = false
     @State private var confirmDiscard = false
+    /// Made as soon as recording starts and saved as it goes, so nothing is lost if the app is killed.
+    @State private var meeting: Meeting?
+    @State private var askConsent = false
+    @State private var writingNote = false
+    @State private var noteText = ""
+    /// Live captions were stopped because the phone got too hot.
+    @State private var cooledDown = false
 
     enum Tab: String, CaseIterable {
         case captions = "实时字幕"
@@ -59,7 +71,29 @@ struct RecordView: View {
         }
         .coveCanvas()
         .tint(CoveColor.text)
-        .task { await begin() }
+        .task {
+            if consentAcknowledged { await begin() } else { askConsent = true }
+        }
+        .alert("开始录音前", isPresented: $askConsent) {
+            Button("已告知，开始录音") {
+                consentAcknowledged = true
+                Task { await begin() }
+            }
+            Button("取消", role: .cancel) { dismiss() }
+        } message: {
+            Text("请先告诉参会的人这场会议会被录音和转录。很多地方的法律要求所有参与者同意后才能录音。\n\n录音和转录只保存在这台手机上。")
+        }
+        .alert("会中笔记", isPresented: $writingNote) {
+            TextField("记下重点，纪要会围绕它展开", text: $noteText)
+            Button("取消", role: .cancel) {}
+            Button("记下") { addNote() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { persist() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification).receive(on: DispatchQueue.main)) { _ in
+            coolDownIfHot()
+        }
         .onChange(of: models.isInstalled) { _, installed in
             // Models finished downloading mid-meeting: captions start from here.
             if installed, engine == nil, recorder.isRecording { startEngine() }
@@ -75,6 +109,11 @@ struct RecordView: View {
             Button("放弃录音", role: .destructive) {
                 notes.cancel()
                 recorder.discard()
+                if let meeting {
+                    meeting.deleteAudio()
+                    context.delete(meeting)
+                    try? context.save()
+                }
                 dismiss()
             }
         }
@@ -103,9 +142,42 @@ struct RecordView: View {
                 .font(.system(size: 44, weight: .light, design: .serif).monospacedDigit())
                 .foregroundStyle(CoveColor.text)
             waveform.frame(height: 36)
+            banners
         }
         .padding(.horizontal)
         .padding(.top, 8)
+    }
+
+    /// The recording's health, in order of how much it matters.
+    @ViewBuilder
+    private var banners: some View {
+        if recorder.stalled {
+            banner("麦克风被占用或断开，正在尝试恢复…已录的部分都已保存。", symbol: "exclamationmark.triangle.fill", color: .red)
+        } else if let notice = recorder.notice {
+            banner(notice, symbol: "info.circle", color: .secondary) { recorder.notice = nil }
+        } else if cooledDown {
+            banner("手机过热，已停止实时字幕和实时纪要，录音继续。散会后会重新完整转录。", symbol: "thermometer.high", color: .orange)
+        } else if isQuiet {
+            banner("声音很小：把手机放到桌子中间、靠近说话的人，识别会准很多。", symbol: "speaker.wave.1", color: .orange)
+        }
+    }
+
+    /// Nothing louder than about -44 dBFS for the last few seconds, well into the meeting.
+    private var isQuiet: Bool {
+        recorder.isRecording && !recorder.isPaused && recorder.elapsed > 10 && (recorder.levels.max() ?? 0) < 0.12
+    }
+
+    private func banner(_ text: String, symbol: String, color: Color, close: (() -> Void)? = nil) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(color)
+            Text(text).font(.footnote).foregroundStyle(CoveColor.text)
+            Spacer(minLength: 0)
+            if let close {
+                Button(action: close) { Image(systemName: "xmark").font(.caption) }.foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(CoveColor.card, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var waveform: some View {
@@ -137,6 +209,11 @@ struct RecordView: View {
                             Text(segment.text)
                                 .foregroundStyle(CoveColor.text)
                         }
+                    }
+                    ForEach(Array(recorder.markers.filter { $0.kind == .note }.enumerated()), id: \.offset) { _, note in
+                        Label("\(clockString(note.time))  \(note.text ?? "")", systemImage: "note.text")
+                            .font(.subheadline)
+                            .foregroundStyle(CoveColor.accent)
                     }
                     if !transcript.draft.isEmpty {
                         Text(transcript.draft)
@@ -210,8 +287,15 @@ struct RecordView: View {
     private var controls: some View {
         VStack(spacing: 14) {
             HStack(spacing: 10) {
-                ForEach(Marker.Kind.allCases, id: \.self) { kind in
-                    Button { recorder.mark(kind) } label: {
+                Button { noteText = ""; writingNote = true } label: {
+                    Label("笔记", systemImage: "square.and.pencil")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .modifier(GlassCapsule())
+                }
+                .buttonStyle(PressableStyle())
+                ForEach(Marker.Kind.buttons, id: \.self) { kind in
+                    Button { recorder.mark(kind); persist() } label: {
                         Label(kind.label, systemImage: kind.symbol)
                             .font(.subheadline.weight(.medium))
                             .padding(.horizontal, 14).padding(.vertical, 9)
@@ -248,14 +332,22 @@ struct RecordView: View {
         notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary,
                         refresh: LiveRefresh(rawValue: liveRefresh) ?? .standard)
         if Transcription.isReady { startEngine() }
-        await recorder.start()
+        let meeting = Meeting(title: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))")
+        meeting.audioFileName = "\(meeting.id.uuidString).m4a"
+        meeting.isRecording = true
+        await recorder.start(into: meeting.partsDirectory)
+        guard recorder.isRecording else { return }
+        context.insert(meeting)
+        try? context.save()
+        self.meeting = meeting
+        coolDownIfHot()
     }
 
     /// Loads the chosen engine off the main thread (the open one reads ~300 MB of models;
     /// Apple's may first install its system model), then attaches to the recording from
     /// wherever it has got to by then.
     private func startEngine() {
-        guard !loadingEngine else { return }
+        guard !loadingEngine, !cooledDown else { return }
         loadingEngine = true
         Task {
             defer { loadingEngine = false }
@@ -264,7 +356,10 @@ struct RecordView: View {
                 engine.offset = recorder.elapsed
                 engine.onUpdate = { update in
                     transcript.apply(update)
-                    if !update.finished.isEmpty { notes.consider(transcript.segments) }
+                    if !update.finished.isEmpty {
+                        notes.consider(transcript.segments)
+                        persist()
+                    }
                 }
                 recorder.onSamples = { engine.accept($0) }
                 self.engine = engine
@@ -274,32 +369,60 @@ struct RecordView: View {
         }
     }
 
+    /// Writes what there is so far to the library.
+    private func persist() {
+        guard let meeting, meeting.isRecording else { return }
+        meeting.segments = transcript.segments
+        meeting.markers = recorder.markers
+        meeting.duration = recorder.elapsed
+        if !notes.notes.isEmpty { meeting.liveNotes = notes.notes }
+        try? context.save()
+    }
+
+    private func addNote() {
+        let text = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        recorder.mark(.note, text: text)
+        persist()
+    }
+
+    /// Serious: stop the running notes (network and the model). Critical: stop the live
+    /// captions too so the recording itself keeps going; the meeting is transcribed again afterwards.
+    private func coolDownIfHot() {
+        let state = ProcessInfo.processInfo.thermalState
+        if state == .serious || state == .critical { notes.isPaused = true }
+        guard state == .critical, !cooledDown else { return }
+        cooledDown = true
+        recorder.onSamples = nil
+        engine = nil
+        meeting?.needsRetranscribe = true
+        persist()
+    }
+
     private func finish() {
-        guard let result = recorder.stop() else {
+        guard let meeting, let result = recorder.stop() else {
             dismiss()
             return
         }
-        let meeting = Meeting(title: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))")
-        meeting.audioFileName = result.fileName
-        meeting.duration = result.duration
-        meeting.markers = result.markers
-        guard let engine else {
-            close(with: meeting)
-            return
-        }
         finishing = true
-        engine.finish {
+        meeting.markers = result.markers
+        let complete: @Sendable () -> Void = {
             Task { @MainActor in
                 meeting.segments = transcript.segments
-                close(with: meeting)
+                notes.cancel()
+                if !notes.notes.isEmpty { meeting.liveNotes = notes.notes }
+                if let url = meeting.audioURL, let duration = try? await AudioParts.join(meeting.partsDirectory, into: url) {
+                    meeting.duration = duration
+                } else {
+                    meeting.duration = result.duration
+                    meeting.audioFileName = nil
+                }
+                meeting.isRecording = false
+                try? context.save()
+                dismiss()
+                onFinish(meeting)
             }
         }
-    }
-
-    private func close(with meeting: Meeting) {
-        notes.cancel()
-        meeting.liveNotes = notes.notes
-        dismiss()
-        onFinish(meeting)
+        if let engine { engine.finish(complete) } else { complete() }
     }
 }

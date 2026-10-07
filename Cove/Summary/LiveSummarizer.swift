@@ -11,6 +11,8 @@ final class LiveSummarizer {
     private(set) var isUpdating = false
     private(set) var updatedAt: Date?
     var error: String?
+    /// Set while the phone is too hot; updates wait.
+    var isPaused = false
 
     private var refresh = LiveRefresh.standard
 
@@ -34,7 +36,7 @@ final class LiveSummarizer {
 
     /// Called whenever new final lines arrive; starts an update if one is due.
     func consider(_ segments: [Segment], force: Bool = false) {
-        guard let provider, provider.isUsable, !isUpdating, covered < segments.count else { return }
+        guard let provider, provider.isUsable, !isPaused, !isUpdating, covered < segments.count else { return }
         let fresh = segments[covered...]
         let chars = fresh.reduce(0) { $0 + $1.text.count }
         let waited = { (interval: TimeInterval) in self.updatedAt.map { Date().timeIntervalSince($0) >= interval } ?? true }

@@ -13,11 +13,20 @@ struct Segment: Codable, Hashable, Sendable {
 struct Marker: Codable, Hashable, Sendable {
     enum Kind: String, Codable, CaseIterable, Sendable {
         case star, todo, question
-        var label: String { ["star": "重点", "todo": "待办", "question": "疑问"][rawValue] ?? "" }
-        var symbol: String { ["star": "star.fill", "todo": "checkmark.circle", "question": "questionmark.circle"][rawValue] ?? "" }
+        /// A typed note; `text` holds it.
+        case note
+        /// The recording stopped for a while (a call, the microphone taken away); `text` says how long.
+        case gap
+        var label: String { ["star": "重点", "todo": "待办", "question": "疑问", "note": "笔记", "gap": "中断"][rawValue] ?? "" }
+        var symbol: String {
+            ["star": "star.fill", "todo": "checkmark.circle", "question": "questionmark.circle", "note": "note.text", "gap": "pause.circle"][rawValue] ?? ""
+        }
+        /// The one-tap buttons on the recording screen.
+        static let buttons: [Kind] = [.star, .todo, .question]
     }
     var time: TimeInterval
     var kind: Kind
+    var text: String? = nil
 }
 
 @Model
@@ -39,6 +48,10 @@ final class Meeting {
     var summaryTemplateID: String = ""
     var summaryModel: String = ""
     var summarizedAt: Date?
+    /// Still being recorded, or the app ended before the recording was closed (recovered at the next launch).
+    var isRecording: Bool = false
+    /// Live captions stopped partway (the phone got too hot): transcribe the whole recording again.
+    var needsRetranscribe: Bool = false
 
     init(title: String, createdAt: Date = .now) {
         self.title = title
@@ -68,6 +81,9 @@ final class Meeting {
 
     var audioURL: URL? { audioFileName.map { Self.audioDirectory.appending(path: $0) } }
 
+    /// Where the recording is written a minute at a time while it goes on (see `AudioParts`).
+    var partsDirectory: URL { Self.audioDirectory.appending(path: "parts-\(id.uuidString)", directoryHint: .isDirectory) }
+
     /// The first line of the summary that says something (the one-sentence conclusion).
     var gist: String {
         summary.split(separator: "\n").lazy
@@ -79,5 +95,6 @@ final class Meeting {
 
     func deleteAudio() {
         if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
+        try? FileManager.default.removeItem(at: partsDirectory)
     }
 }

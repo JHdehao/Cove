@@ -14,6 +14,7 @@ struct LibraryView: View {
     @State private var showPaste = false
     @State private var importing: [UTType]?
     @State private var importError: String?
+    @State private var recovered = 0
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -50,7 +51,6 @@ struct LibraryView: View {
         }
         .fullScreenCover(isPresented: $showRecorder) {
             RecordView { meeting in
-                context.insert(meeting)
                 path = [meeting]
             }
         }
@@ -69,6 +69,12 @@ struct LibraryView: View {
             } catch {
                 importError = error.localizedDescription
             }
+        }
+        .task { recovered = await Recovery.run(context) }
+        .alert("已恢复未结束的录音", isPresented: Binding(get: { recovered > 0 }, set: { if !$0 { recovered = 0 } })) {
+            Button("好") {}
+        } message: {
+            Text("上次有 \(recovered) 场会议没有正常结束（App 被关闭或退出）。录音和转录已经恢复，最多缺最后一分钟。")
         }
         .alert("导入失败", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("好") {}
@@ -179,7 +185,11 @@ struct MeetingRow: View {
                 Text(meeting.title.isEmpty ? "未命名会议" : meeting.title)
                     .font(.body.weight(.medium))
                     .lineLimit(1)
-                if meeting.summary.isEmpty { CoveTag(text: meeting.segmentsData.isEmpty ? "未转录" : "未总结") }
+                if meeting.isRecording {
+                    CoveTag(text: "录音中")
+                } else if meeting.summary.isEmpty {
+                    CoveTag(text: meeting.segmentsData.isEmpty ? "未转录" : "未总结")
+                }
             }
             if !meeting.gist.isEmpty {
                 Text(meeting.gist)

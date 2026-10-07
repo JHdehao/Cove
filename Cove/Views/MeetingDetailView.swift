@@ -59,8 +59,10 @@ struct MeetingDetailView: View {
         })
         .onAppear {
             if let url = meeting.audioURL, FileManager.default.fileExists(atPath: url.path) { player.load(url) }
-            // An imported or uncaptioned recording: transcribe it now.
-            if meeting.segments.isEmpty, meeting.audioURL != nil, Transcription.isReady, transcribing == nil { transcribe() }
+            // An imported or uncaptioned recording, or one whose captions stopped partway: transcribe it now.
+            if meeting.segments.isEmpty || meeting.needsRetranscribe, meeting.audioURL != nil, Transcription.isReady, transcribing == nil {
+                transcribe()
+            }
             if autoSummarize, meeting.summary.isEmpty, !meeting.segments.isEmpty, providers.active?.isUsable == true,
                !summarizer.isRunning { summarize() }
         }
@@ -270,6 +272,7 @@ struct MeetingDetailView: View {
                     Task { @MainActor in if transcribing != nil { transcribing = value } }
                 }
                 meeting.segments = segments
+                meeting.needsRetranscribe = false
                 transcribing = nil
                 if autoSummarize, !segments.isEmpty, providers.active?.isUsable == true { summarize() }
             } catch {
