@@ -29,6 +29,8 @@ struct MeetingDetailView: View {
     @State private var diarizeError: String?
     @State private var editingSegment: Int?
     @State private var reviewingActions = false
+    @State private var pro = Pro.shared
+    @State private var showPro = false
 
     enum Tab: String, CaseIterable {
         case minutes = "纪要"
@@ -39,7 +41,7 @@ struct MeetingDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+                ForEach(Tab.allCases, id: \.self) { Text(LocalizedStringKey($0.rawValue)) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -57,7 +59,7 @@ struct MeetingDetailView: View {
             if player.isLoaded { PlayerBar(player: player) }
         }
         .coveCanvas()
-        .navigationTitle(meeting.title.isEmpty ? "未命名会议" : meeting.title)
+        .navigationTitle(meeting.title.isEmpty ? String(localized: "未命名会议") : meeting.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { menu }
         .environment(\.openURL, OpenURLAction { url in
@@ -90,6 +92,7 @@ struct MeetingDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showPro) { ProView() }
         .sheet(isPresented: $reviewingActions) {
             ActionItemsSheet(meetingTitle: meeting.title, items: Summarizer.actionItems(in: meeting.summary))
         }
@@ -152,7 +155,7 @@ struct MeetingDetailView: View {
         HStack(spacing: 8) {
             if summarizer.isRunning {
                 ProgressView().controlSize(.small)
-                Text(summarizer.phase.isEmpty ? "正在生成纪要…" : summarizer.phase)
+                Text(summarizer.phase.isEmpty ? String(localized: "正在生成纪要…") : summarizer.phase)
                 Spacer()
                 Button("停止") { summarizer.cancel() }
             }
@@ -192,16 +195,22 @@ struct MeetingDetailView: View {
                 }
             }
             Button(action: summarize) {
-                Label("生成纪要", systemImage: "sparkles")
+                Label(String(localized: "生成纪要"), systemImage: "sparkles")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
             .tint(CoveColor.accent)
-            Text(providers.active.map { "使用 \($0.name) · \($0.model.isEmpty ? "未选模型" : $0.model)" } ?? "还没有模型接口，请到设置里添加。")
+            Text(providerLine)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var providerLine: String {
+        guard let provider = providers.active else { return String(localized: "还没有模型接口，请到设置里添加。") }
+        let model = provider.model.isEmpty ? String(localized: "未选模型") : provider.model
+        return String(localized: "使用 \(provider.name) · \(model)")
     }
 
     @ViewBuilder
@@ -244,28 +253,32 @@ struct MeetingDetailView: View {
                             Button("自定义模板") { templateID = SummaryTemplate.custom; summarize() }
                         }
                     } label: {
-                        Label("重新生成纪要", systemImage: "arrow.clockwise")
+                        Label(String(localized: "重新生成纪要"), systemImage: "arrow.clockwise")
                     }
                     if providers.providers.count > 1 {
                         Picker(selection: Binding(get: { providers.activeID }, set: { providers.activeID = $0 })) {
                             ForEach(providers.providers) { Text("\($0.name) · \($0.model)").tag(Optional($0.id)) }
                         } label: {
-                            Label("模型接口", systemImage: "cpu")
+                            Label(String(localized: "模型接口"), systemImage: "cpu")
                         }
                     }
                 }
                 if meeting.audioURL != nil, Transcription.isReady, transcribing == nil {
-                    Button { transcribe() } label: { Label("重新转录", systemImage: "waveform") }
+                    Button { transcribe() } label: { Label(String(localized: "重新转录"), systemImage: "waveform") }
                 }
                 if meeting.audioURL != nil, !meeting.segments.isEmpty, !diarizing {
-                    if speakerModels.isInstalled {
+                    if !pro.isUnlocked {
+                        Button { showPro = true } label: {
+                            Label(String(localized: "识别说话人（Pro）"), systemImage: "person.2.wave.2")
+                        }
+                    } else if speakerModels.isInstalled {
                         Menu {
                             Button("自动判断人数") { diarize() }
                             ForEach(2...8, id: \.self) { count in
                                 Button("\(count) 人") { diarize(speakers: count) }
                             }
                         } label: {
-                            Label("识别说话人", systemImage: "person.2.wave.2")
+                            Label(String(localized: "识别说话人"), systemImage: "person.2.wave.2")
                         }
                     } else {
                         Button {
@@ -274,33 +287,34 @@ struct MeetingDetailView: View {
                                 if speakerModels.isInstalled { diarize() } else { diarizeError = speakerModels.error }
                             }
                         } label: {
-                            Label("识别说话人（先下载 \(SpeakerModels.totalMB) MB 模型）", systemImage: "person.2.wave.2")
+                            Label(String(localized: "识别说话人（先下载 \(SpeakerModels.totalMB) MB 模型）"), systemImage: "person.2.wave.2")
                         }
                     }
                 }
                 if !Summarizer.actionItems(in: meeting.summary).isEmpty {
-                    Button { reviewingActions = true } label: { Label("待办导入提醒事项", systemImage: "checklist") }
+                    Button { reviewingActions = true } label: { Label(String(localized: "待办导入提醒事项"), systemImage: "checklist") }
                 }
                 ShareLink(item: Exporter.markdown(meeting), subject: Text(meeting.title)) {
-                    Label("分享 Markdown", systemImage: "square.and.arrow.up")
+                    Label(String(localized: "分享 Markdown"), systemImage: "square.and.arrow.up")
                 }
                 if AutoExport.folder != nil, !meeting.summary.isEmpty {
                     Button {
-                        notice = AutoExport.save(meeting) ?? "已导出到「\(AutoExport.folder?.lastPathComponent ?? "")」。"
+                        let folder = AutoExport.folder?.lastPathComponent ?? ""
+                        notice = AutoExport.save(meeting) ?? String(localized: "已导出到「\(folder)」。")
                     } label: {
-                        Label("导出到文件夹", systemImage: "folder")
+                        Label(String(localized: "导出到文件夹"), systemImage: "folder")
                     }
                 }
                 ShareLink(item: Exporter.srt(meeting)) {
-                    Label("分享字幕（SRT）", systemImage: "captions.bubble")
+                    Label(String(localized: "分享字幕（SRT）"), systemImage: "captions.bubble")
                 }
-                Button { newName = meeting.title; editingTitle = true } label: { Label("重命名", systemImage: "pencil") }
+                Button { newName = meeting.title; editingTitle = true } label: { Label(String(localized: "重命名"), systemImage: "pencil") }
                 Button(role: .destructive) {
                     meeting.deleteAudio()
                     context.delete(meeting)
                     dismiss()
                 } label: {
-                    Label("删除会议", systemImage: "trash")
+                    Label(String(localized: "删除会议"), systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -335,7 +349,7 @@ struct MeetingDetailView: View {
                 if shouldDiarize { diarize { autoSummarizeIfDue() } } else { autoSummarizeIfDue() }
             } catch {
                 transcribing = nil
-                transcribeError = "转录失败：\(error.localizedDescription)"
+                transcribeError = String(localized: "转录失败：\(error.localizedDescription)")
             }
         }
     }
@@ -359,7 +373,7 @@ struct MeetingDetailView: View {
 
     /// Speakers are worked out once, automatically, when their models are on the phone.
     private var shouldDiarize: Bool {
-        autoDiarize && speakerModels.isInstalled && meeting.diarizedAt == nil && meeting.audioURL != nil && !meeting.segments.isEmpty
+        pro.isUnlocked && autoDiarize && speakerModels.isInstalled && meeting.diarizedAt == nil && meeting.audioURL != nil && !meeting.segments.isEmpty
             && !meeting.segments.contains { $0.speaker != nil }
     }
 
@@ -386,7 +400,7 @@ struct MeetingDetailView: View {
             do {
                 meeting.segments = try await Diarizer.label(meeting.segments, audio: url, speakers: count)
             } catch {
-                diarizeError = "识别说话人失败：\(error.localizedDescription)"
+                diarizeError = String(localized: "识别说话人失败：\(error.localizedDescription)")
             }
             meeting.diarizedAt = .now
             diarizing = false

@@ -37,7 +37,7 @@ final class Recorder {
 
     func start(into directory: URL) async {
         guard await AVAudioApplication.requestRecordPermission() else {
-            error = "没有麦克风权限。请到系统设置 → 隐私与安全性 → 麦克风里打开 Cove。"
+            error = String(localized: "没有麦克风权限。请到系统设置 → 隐私与安全性 → 麦克风里打开 Cove。")
             return
         }
         do {
@@ -61,7 +61,7 @@ final class Recorder {
             engine.inputNode.removeTap(onBus: 0)
             tap?.close()
             tap = nil
-            self.error = "无法开始录音：\(error.localizedDescription)"
+            self.error = String(localized: "无法开始录音：\(error.localizedDescription)")
         }
     }
 
@@ -179,8 +179,8 @@ final class Recorder {
             if let interruptedAt {
                 let seconds = Date().timeIntervalSince(interruptedAt)
                 if seconds >= 1 {
-                    mark(.gap, text: "录音中断约 \(Int(seconds.rounded())) 秒")
-                    notice = "录音被打断约 \(Int(seconds.rounded())) 秒，已自动继续。"
+                    mark(.gap, text: String(localized: "录音中断约 \(Int(seconds.rounded())) 秒"))
+                    notice = String(localized: "录音被打断约 \(Int(seconds.rounded())) 秒，已自动继续。")
                 }
             }
             interruptedAt = nil

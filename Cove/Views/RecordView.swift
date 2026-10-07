@@ -53,7 +53,7 @@ struct RecordView: View {
         VStack(spacing: 0) {
             header
             Picker("", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+                ForEach(Tab.allCases, id: \.self) { Text(LocalizedStringKey($0.rawValue)) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -134,7 +134,7 @@ struct RecordView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if recorder.isRecording {
-                    Label(recorder.isPaused ? "已暂停" : "录音中", systemImage: "circle.fill")
+                    Label(recorder.isPaused ? String(localized: "已暂停") : String(localized: "录音中"), systemImage: "circle.fill")
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(recorder.isPaused ? Color.secondary : CoveColor.accent)
                 }
@@ -153,13 +153,13 @@ struct RecordView: View {
     @ViewBuilder
     private var banners: some View {
         if recorder.stalled {
-            banner("麦克风被占用或断开，正在尝试恢复…已录的部分都已保存。", symbol: "exclamationmark.triangle.fill", color: .red)
+            banner(String(localized: "麦克风被占用或断开，正在尝试恢复…已录的部分都已保存。"), symbol: "exclamationmark.triangle.fill", color: .red)
         } else if let notice = recorder.notice {
             banner(notice, symbol: "info.circle", color: .secondary) { recorder.notice = nil }
         } else if cooledDown {
-            banner("手机过热，已停止实时字幕和实时纪要，录音继续。散会后会重新完整转录。", symbol: "thermometer.high", color: .orange)
+            banner(String(localized: "手机过热，已停止实时字幕和实时纪要，录音继续。散会后会重新完整转录。"), symbol: "thermometer.high", color: .orange)
         } else if isQuiet {
-            banner("声音很小：把手机放到桌子中间、靠近说话的人，识别会准很多。", symbol: "speaker.wave.1", color: .orange)
+            banner(String(localized: "声音很小：把手机放到桌子中间、靠近说话的人，识别会准很多。"), symbol: "speaker.wave.1", color: .orange)
         }
     }
 
@@ -198,7 +198,7 @@ struct RecordView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if loadingEngine {
-                        Label("正在加载语音模型…", systemImage: "hourglass").font(.subheadline).foregroundStyle(.secondary)
+                        Label(String(localized: "正在加载语音模型…"), systemImage: "hourglass").font(.subheadline).foregroundStyle(.secondary)
                     } else if engine == nil {
                         modelCard
                     }
@@ -289,7 +289,7 @@ struct RecordView: View {
         VStack(spacing: 14) {
             HStack(spacing: 10) {
                 Button { noteText = ""; writingNote = true } label: {
-                    Label("笔记", systemImage: "square.and.pencil")
+                    Label(String(localized: "笔记"), systemImage: "square.and.pencil")
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .modifier(GlassCapsule())
@@ -338,7 +338,7 @@ struct RecordView: View {
         notes.configure(provider: provider, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary,
                         refresh: LiveRefresh(rawValue: liveRefresh) ?? .standard)
         if Transcription.isReady { startEngine() }
-        let meeting = Meeting(title: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))")
+        let meeting = Meeting(title: String(localized: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))"))
         meeting.audioFileName = "\(meeting.id.uuidString).m4a"
         meeting.isRecording = true
         if let event = CalendarLink.currentEvent() {
@@ -377,7 +377,7 @@ struct RecordView: View {
                 recorder.onSamples = { engine.accept($0) }
                 self.engine = engine
             } catch {
-                engineError = "语音识别没能启动（\(error.localizedDescription)），本次只录音，会后可以再转录。"
+                engineError = String(localized: "语音识别没能启动（\(error.localizedDescription)），本次只录音，会后可以再转录。")
             }
         }
     }

@@ -74,7 +74,7 @@ final class LiveSummarizer {
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     // Thinking models can spend the whole budget before writing a word.
                     notes = previous
-                    self.error = "模型这次没有返回内容（可能思考用完了输出额度），稍后会再试。可换不带思考的模型。"
+                    self.error = String(localized: "模型这次没有返回内容（可能思考用完了输出额度），稍后会再试。可换不带思考的模型。")
                 } else {
                     notes = head + draft.trimmingCharacters(in: .whitespacesAndNewlines)
                     covered = upTo
@@ -83,7 +83,7 @@ final class LiveSummarizer {
             } catch is CancellationError {
                 notes = previous
                 if timedOut {
-                    self.error = "这次更新超过 2 分钟没完成，已放弃，稍后会再试。"
+                    self.error = String(localized: "这次更新超过 2 分钟没完成，已放弃，稍后会再试。")
                     updatedAt = .now
                 }
             } catch {

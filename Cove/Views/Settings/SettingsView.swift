@@ -13,10 +13,12 @@ struct SettingsView: View {
     @State private var store = ProviderStore.shared
     @State private var models = SpeechModels.shared
     @AppStorage(SpeechKey.engine) private var speechEngine = Transcription.defaultEngine.rawValue
-    @AppStorage(SpeechKey.appleLanguage) private var appleLanguage = AppleSpeechLanguage.mandarin.rawValue
+    @AppStorage(SpeechKey.appleLanguage) private var appleLanguage = AppleSpeechLanguage.systemDefault.rawValue
     @State private var adding = false
     @State private var consent = AIConsent.shared
     @State private var speakers = SpeakerModels.shared
+    @State private var pro = Pro.shared
+    @State private var showPro = false
     @AppStorage(SpeakerKey.auto) private var autoDiarize = true
     @AppStorage(CalendarLink.key) private var calendarLink = false
     @State private var exportFolder = AutoExport.folder?.lastPathComponent
@@ -39,9 +41,9 @@ struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         HStack(spacing: 6) {
                                             Text(provider.name)
-                                            if provider.isLocal { CoveTag(text: "本地") }
+                                            if provider.isLocal { CoveTag(text: String(localized: "本地")) }
                                         }
-                                        Text(provider.model.isEmpty ? "未选模型" : provider.model)
+                                        Text(provider.model.isEmpty ? String(localized: "未选模型") : provider.model)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -53,7 +55,7 @@ struct SettingsView: View {
                                 .buttonStyle(.borderless)
                         }
                     }
-                    Button { adding = true } label: { Label("添加接口", systemImage: "plus") }
+                    Button { adding = true } label: { Label(String(localized: "添加接口"), systemImage: "plus") }
                 } header: {
                     Text("模型接口")
                 } footer: {
@@ -72,7 +74,7 @@ struct SettingsView: View {
                             ForEach(AppleSpeechLanguage.allCases) { Text($0.label).tag($0.rawValue) }
                         }
                     } else if models.isInstalled {
-                        LabeledContent("X-ASR 流式 + 离线 + Silero VAD", value: "已下载")
+                        LabeledContent(String(localized: "X-ASR 流式 + 离线 + Silero VAD"), value: String(localized: "已下载"))
                         Button("删除语音模型", role: .destructive) { models.remove() }
                     } else if models.isDownloading {
                         ProgressView(value: models.progress) { Text("\(models.phase)… \(Int(models.progress * 100))%") }
@@ -92,17 +94,19 @@ struct SettingsView: View {
                 .coveCard()
 
                 Section {
-                    if speakers.isInstalled {
+                    if !pro.isUnlocked {
+                        Button { showPro = true } label: { Label("解锁 Cove Pro", systemImage: "sparkles") }
+                    } else if speakers.isInstalled {
                         Toggle("会后自动识别说话人", isOn: $autoDiarize)
                         Button("删除说话人模型", role: .destructive) { speakers.remove() }
                     } else if speakers.isDownloading {
-                        ProgressView(value: speakers.progress) { Text("正在下载… \(Int(speakers.progress * 100))%") }
+                        ProgressView(value: speakers.progress) { Text(String(localized: "正在下载… \(Int(speakers.progress * 100))%")) }
                     } else {
                         Button("下载说话人模型（约 \(SpeakerModels.totalMB) MB）") { Task { await speakers.download() } }
                         if let error = speakers.error { Text(error).font(.caption).foregroundStyle(.red) }
                     }
                 } header: {
-                    Text("说话人识别（本机）")
+                    Text("说话人识别（本机 · Pro）")
                 } footer: {
                     Text("会后在手机上分出「说话人 1 / 2 / 3」，长按转录里的名字可改成真名。人数已知时，在会议页菜单里指定人数会更准。模型：pyannote 分割 + 3D-Speaker 声纹，开源。")
                 }
@@ -145,12 +149,12 @@ struct SettingsView: View {
                         ForEach(LiveRefresh.allCases) { Text($0.label).tag($0.rawValue) }
                     }
                     NavigationLink("自定义模板") {
-                        TextPage(title: "自定义模板", text: $customPrompt,
-                                 hint: "写你想要的纪要结构，比如：\n## 背景\n## 结论\n## 待办\n标题、一句话结论和出处标注会自动加上。")
+                        TextPage(title: String(localized: "自定义模板"), text: $customPrompt,
+                                 hint: String(localized: "写你想要的纪要结构，比如：\n## 背景\n## 结论\n## 待办\n标题、一句话结论和出处标注会自动加上。"))
                     }
                     NavigationLink("术语表") {
-                        TextPage(title: "术语表", text: $glossary,
-                                 hint: "人名、项目名、专业词，一行一个。转录认错时，模型会按这里纠正。")
+                        TextPage(title: String(localized: "术语表"), text: $glossary,
+                                 hint: String(localized: "人名、项目名、专业词，一行一个。转录认错时，模型会按这里纠正。"))
                     }
                 } header: {
                     Text("纪要")
@@ -158,9 +162,9 @@ struct SettingsView: View {
                 .coveCard()
 
                 Section {
-                    LabeledContent("录音与转录", value: "只存在本机")
+                    LabeledContent(String(localized: "录音与转录"), value: String(localized: "只存在本机"))
                     if !consent.grantedHosts.isEmpty {
-                        LabeledContent("已同意发送到", value: consent.grantedHosts.joined(separator: "、"))
+                        LabeledContent(String(localized: "已同意发送到"), value: consent.grantedHosts.joined(separator: "、"))
                         Button("撤回所有发送同意", role: .destructive) { consent.revokeAll() }
                     }
                     Link("隐私政策", destination: AppLinks.privacy)
@@ -168,6 +172,24 @@ struct SettingsView: View {
                     Text("隐私")
                 } footer: {
                     Text("Cove 不收集任何数据，没有账号、统计或广告。生成纪要时，会议转录只发送到你自己选的模型接口；第一次发送到某个云端服务前会先问你。")
+                }
+                .coveCard()
+
+                Section {
+                    if pro.isUnlocked {
+                        LabeledContent("Cove Pro", value: String(localized: "已解锁"))
+                    } else {
+                        Button { showPro = true } label: {
+                            LabeledContent("Cove Pro", value: pro.price ?? String(localized: "一次性买断"))
+                        }
+                        .foregroundStyle(CoveColor.text)
+                    }
+                    Button("恢复购买") { Task { await pro.restore() } }
+                    if let message = pro.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                } header: {
+                    Text("Cove Pro")
+                } footer: {
+                    Text("Pro 只多一项：会后在手机上识别说话人。其余功能全部免费。")
                 }
                 .coveCard()
 
@@ -210,6 +232,7 @@ struct SettingsView: View {
             } message: {
                 Text(settingsError ?? "")
             }
+            .sheet(isPresented: $showPro) { ProView() }
             .sheet(isPresented: $adding) { PresetPicker { editing = ProviderConfig(preset: $0) } }
             .sheet(item: $editing) { ProviderEditView(config: $0) }
         }
@@ -224,11 +247,11 @@ struct PresetPicker: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("云端 API") { rows(ProviderPreset.all.filter { !$0.isLocal && !$0.id.hasPrefix("custom") }) }
+                Section(String(localized: "云端 API")) { rows(ProviderPreset.all.filter { !$0.isLocal && !$0.id.hasPrefix("custom") }) }
                     .coveCard()
                 Section("本地模型") { rows((AppleModel.isAvailable ? [ProviderPreset.apple] : []) + ProviderPreset.all.filter(\.isLocal)) }
                     .coveCard()
-                Section("其他") { rows(ProviderPreset.all.filter { $0.id.hasPrefix("custom") }) }
+                Section(String(localized: "其他")) { rows(ProviderPreset.all.filter { $0.id.hasPrefix("custom") }) }
                     .coveCard()
             }
             .coveGroupedBackground()
@@ -288,7 +311,7 @@ struct LicensesView: View {
     private let items: [(String, String, String)] = [
         ("sherpa-onnx", "Apache-2.0", "https://github.com/k2-fsa/sherpa-onnx"),
         ("ONNX Runtime", "MIT", "https://github.com/microsoft/onnxruntime"),
-        ("X-ASR-zh-en 语音模型", "Apache-2.0", "https://github.com/Gilgamesh-J/X-ASR"),
+        (String(localized: "X-ASR-zh-en 语音模型"), "Apache-2.0", "https://github.com/Gilgamesh-J/X-ASR"),
         ("Silero VAD", "MIT", "https://github.com/snakers4/silero-vad"),
         ("pyannote segmentation 3.0", "MIT", "https://huggingface.co/pyannote/segmentation-3.0"),
         ("3D-Speaker CAM++", "Apache-2.0", "https://github.com/modelscope/3D-Speaker"),

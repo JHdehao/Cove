@@ -25,26 +25,47 @@ enum TranscriptionEngine: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .open: "开源（X-ASR）"
-        case .apple: "苹果系统"
+        case .open: String(localized: "开源（X-ASR）")
+        case .apple: String(localized: "苹果系统")
         }
     }
 }
 
 /// Languages offered for Apple's engine (X-ASR does Mandarin and English together).
 enum AppleSpeechLanguage: String, CaseIterable, Identifiable {
-    case mandarin = "zh-CN", cantonese = "zh-HK", taiwan = "zh-TW", english = "en-US", japanese = "ja-JP", korean = "ko-KR"
+    case mandarin = "zh-CN", cantonese = "zh-HK", taiwan = "zh-TW", english = "en-US", japanese = "ja-JP", korean = "ko-KR",
+         russian = "ru-RU", arabic = "ar-SA"
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .mandarin: "普通话"
-        case .cantonese: "粤语"
-        case .taiwan: "中文（台湾）"
-        case .english: "英语"
-        case .japanese: "日语"
-        case .korean: "韩语"
+        case .mandarin: String(localized: "普通话")
+        case .cantonese: String(localized: "粤语")
+        case .taiwan: String(localized: "中文（台湾）")
+        case .english: String(localized: "英语")
+        case .japanese: String(localized: "日语")
+        case .korean: String(localized: "韩语")
+        case .russian: String(localized: "俄语")
+        case .arabic: String(localized: "阿拉伯语")
+        }
+    }
+}
+
+extension AppleSpeechLanguage {
+    /// The phone's language, before the user picks one.
+    static var systemDefault: AppleSpeechLanguage {
+        let language = Locale.current.language
+        switch language.languageCode?.identifier {
+        case "zh":
+            if language.script?.identifier == "Hant" { return Locale.current.region?.identifier == "HK" ? .cantonese : .taiwan }
+            return .mandarin
+        case "en": return .english
+        case "ja": return .japanese
+        case "ko": return .korean
+        case "ru": return .russian
+        case "ar": return .arabic
+        default: return .english
         }
     }
 }
@@ -61,10 +82,12 @@ enum Transcription {
         return false
     }
 
-    /// Before the user picks: Apple's where there is one and the open models aren't downloaded,
-    /// so the first meeting can be recorded and captioned straight away.
+    /// Before the user picks: Apple's where there is one and the open models aren't downloaded (so
+    /// the first meeting is captioned straight away), or the phone isn't in Chinese (X-ASR does only
+    /// Mandarin and English).
     static var defaultEngine: TranscriptionEngine {
-        appleSupported && !SpeechModels.filesPresent ? .apple : .open
+        let chinese = Locale.current.language.languageCode?.identifier == "zh"
+        return appleSupported && (!SpeechModels.filesPresent || !chinese) ? .apple : .open
     }
 
     /// The engine chosen in Settings, falling back to the open one where Apple's isn't available.
@@ -74,7 +97,7 @@ enum Transcription {
     }
 
     static var appleLanguage: String {
-        UserDefaults.standard.string(forKey: SpeechKey.appleLanguage) ?? AppleSpeechLanguage.mandarin.rawValue
+        UserDefaults.standard.string(forKey: SpeechKey.appleLanguage) ?? AppleSpeechLanguage.systemDefault.rawValue
     }
 
     /// Ready to transcribe without asking the user to download anything first.

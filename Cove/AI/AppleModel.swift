@@ -26,14 +26,14 @@ enum AppleModel {
         if #available(iOS 26, *) {
             switch SystemLanguageModel.default.availability {
             case .available: return nil
-            case .unavailable(.deviceNotEligible): return "这台设备不支持 Apple 智能。"
-            case .unavailable(.appleIntelligenceNotEnabled): return "请先在系统设置里打开 Apple 智能。"
-            case .unavailable(.modelNotReady): return "Apple 智能模型还在下载，稍后再试。"
-            default: return "Apple 智能暂不可用。"
+            case .unavailable(.deviceNotEligible): return String(localized: "这台设备不支持 Apple 智能。")
+            case .unavailable(.appleIntelligenceNotEnabled): return String(localized: "请先在系统设置里打开 Apple 智能。")
+            case .unavailable(.modelNotReady): return String(localized: "Apple 智能模型还在下载，稍后再试。")
+            default: return String(localized: "Apple 智能暂不可用。")
             }
         }
         #endif
-        return "需要 iOS 26 和支持 Apple 智能的设备。"
+        return String(localized: "需要 iOS 26 和支持 Apple 智能的设备。")
     }
 
     static func stream(system: String, messages: [ChatMessage], yield: (String) -> Void) async throws {
@@ -53,17 +53,17 @@ enum AppleModel {
                 }
             } catch let error as LanguageModelSession.GenerationError {
                 if case .exceededContextWindowSize(_) = error {
-                    throw LLMError.service("内容超出了苹果本机模型能处理的长度。可以把接口的「单次最多字数」调小，或换用云端 / 电脑上的模型。")
+                    throw LLMError.service(String(localized: "内容超出了苹果本机模型能处理的长度。可以把接口的「单次最多字数」调小，或换用云端 / 电脑上的模型。"))
                 }
                 if case .guardrailViolation(_) = error {
-                    throw LLMError.service("苹果本机模型拒绝处理这段内容（安全限制）。可以换用其他模型接口。")
+                    throw LLMError.service(String(localized: "苹果本机模型拒绝处理这段内容（安全限制）。可以换用其他模型接口。"))
                 }
-                throw LLMError.service("苹果本机模型出错：\(error.localizedDescription)")
+                throw LLMError.service(String(localized: "苹果本机模型出错：\(error.localizedDescription)"))
             }
             return
         }
         #endif
-        throw LLMError.service(unavailableReason ?? "苹果本机模型不可用。")
+        throw LLMError.service(unavailableReason ?? String(localized: "苹果本机模型不可用。"))
     }
 }
 
@@ -131,7 +131,9 @@ struct AIConsentPrompt: ViewModifier {
             Button("同意并发送") { consent.answer(true) }
             Button("不发送", role: .cancel) { consent.answer(false) }
         } message: {
-            Text("生成纪要、实时纪要和对话需要把会议转录（可能包含人名、公司信息等个人数据）发送到「\(consent.pending?.name ?? "")」（\(consent.pending?.host ?? "")）处理，适用该服务自己的隐私政策。Cove 本身不收集任何数据。\n\n只问这一次，可在设置 → 隐私里撤回。")
+            let name = consent.pending?.name ?? ""
+            let host = consent.pending?.host ?? ""
+            Text("生成纪要、实时纪要和对话需要把会议转录（可能包含人名、公司信息等个人数据）发送到「\(name)」（\(host)）处理，适用该服务自己的隐私政策。Cove 本身不收集任何数据。\n\n只问这一次，可在设置 → 隐私里撤回。")
         }
     }
 }

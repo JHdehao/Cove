@@ -29,6 +29,9 @@
 	<false/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- Cove Pro 内购商品 ID，跟随签名时的 Bundle ID -->
+	<key>CoveProProductID</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER).pro</string>
 	<key>CoveCommit</key>
 	<string>$(COVE_COMMIT)</string>
 </dict>

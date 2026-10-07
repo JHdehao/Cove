@@ -13,8 +13,8 @@ final class AppleSpeechEngine: LiveTranscriber, @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .unsupportedLanguage: "苹果语音识别不支持所选语言。"
-            case .noAudioFormat: "苹果语音识别无法处理这种音频。"
+            case .unsupportedLanguage: String(localized: "苹果语音识别不支持所选语言。")
+            case .noAudioFormat: String(localized: "苹果语音识别无法处理这种音频。")
             }
         }
     }

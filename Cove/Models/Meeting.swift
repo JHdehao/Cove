@@ -17,7 +17,7 @@ struct Marker: Codable, Hashable, Sendable {
         case note
         /// The recording stopped for a while (a call, the microphone taken away); `text` says how long.
         case gap
-        var label: String { ["star": "重点", "todo": "待办", "question": "疑问", "note": "笔记", "gap": "中断"][rawValue] ?? "" }
+        var label: String { ["star": String(localized: "重点"), "todo": String(localized: "待办"), "question": String(localized: "疑问"), "note": String(localized: "笔记"), "gap": String(localized: "中断")][rawValue] ?? "" }
         var symbol: String {
             ["star": "star.fill", "todo": "checkmark.circle", "question": "questionmark.circle", "note": "note.text", "gap": "pause.circle"][rawValue] ?? ""
         }

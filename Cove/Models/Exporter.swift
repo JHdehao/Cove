@@ -8,7 +8,7 @@ enum Exporter {
         let minutes = Citations.linked(meeting.summary, segments: segments)
             .replacingOccurrences(of: #"\[(\d{1,2}:\d{2}(?::\d{2})?)\]\(cove://seg/\d+\)"#, with: "($1)", options: .regularExpression)
         var text = minutes.isEmpty ? "# \(meeting.title)\n" : minutes
-        text += "\n\n---\n\n## 转录\n\n"
+        text += String(localized: "\n\n---\n\n## 转录\n\n")
         text += segments.map { "**\(clockString($0.start))**\($0.speaker.map { " \($0)" } ?? "")：\($0.text)" }.joined(separator: "\n\n")
         return text
     }

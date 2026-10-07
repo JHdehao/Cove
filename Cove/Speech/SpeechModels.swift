@@ -91,7 +91,7 @@ final class SpeechModels {
                     done += item.size
                     continue
                 }
-                phase = "正在下载"
+                phase = String(localized: "正在下载")
                 let base = Double(done)
                 let temporary = try await Self.fetch(item.url) { received in
                     Task { @MainActor in self.progress = min(1, (base + Double(received)) / total) }
@@ -103,7 +103,7 @@ final class SpeechModels {
                     try? FileManager.default.removeItem(at: destination)
                     try FileManager.default.moveItem(at: temporary, to: destination)
                 case .archive(let map):
-                    phase = "正在解压"
+                    phase = String(localized: "正在解压")
                     try await Task.detached(priority: .userInitiated) {
                         try ModelArchive.extract(temporary, files: map, to: Self.directory)
                     }.value
@@ -113,7 +113,7 @@ final class SpeechModels {
             progress = 1
             isInstalled = Self.filesPresent
         } catch {
-            self.error = "模型下载失败：\(error.localizedDescription)"
+            self.error = String(localized: "模型下载失败：\(error.localizedDescription)")
         }
     }
 

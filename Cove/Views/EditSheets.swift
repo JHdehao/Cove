@@ -24,7 +24,7 @@ struct SegmentEditor: View {
                 .coveCard()
                 Section("说话人") {
                     Picker("说话人", selection: $speaker) {
-                        Text("未标注").tag("")
+                        Text(String(localized: "未标注")).tag("")
                         ForEach(speakers, id: \.self) { Text($0).tag($0) }
                     }
                     TextField("或填一个新名字", text: $newSpeaker)
@@ -116,21 +116,21 @@ struct ActionItemsSheet: View {
         let store = EKEventStore()
         do {
             guard try await store.requestFullAccessToReminders() else {
-                message = "没有提醒事项的权限。请到系统设置 → 隐私与安全性 → 提醒事项里打开 Cove。"
+                message = String(localized: "没有提醒事项的权限。请到系统设置 → 隐私与安全性 → 提醒事项里打开 Cove。")
                 return
             }
             let chosen = items.filter { $0.include && !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
             for item in chosen {
                 let reminder = EKReminder(eventStore: store)
                 reminder.title = item.text
-                reminder.notes = "来自会议：\(meetingTitle)"
+                reminder.notes = String(localized: "来自会议：\(meetingTitle)")
                 reminder.calendar = store.defaultCalendarForNewReminders()
                 try store.save(reminder, commit: false)
             }
             try store.commit()
-            message = "已导入 \(chosen.count) 条待办到提醒事项。"
+            message = String(localized: "已导入 \(chosen.count) 条待办到提醒事项。")
         } catch {
-            message = "导入失败：\(error.localizedDescription)"
+            message = String(localized: "导入失败：\(error.localizedDescription)")
         }
     }
 }

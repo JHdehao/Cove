@@ -37,7 +37,7 @@ struct ProviderEditView: View {
                     Picker("请求格式", selection: $config.wire) {
                         ForEach(WireFormat.network) { Text($0.label).tag($0) }
                     }
-                    SecureField(preset?.needsKey == false ? "API Key（本地接口可留空）" : "API Key", text: $key)
+                    SecureField(preset?.needsKey == false ? String(localized: "API Key（本地接口可留空）") : "API Key", text: $key)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
@@ -102,7 +102,7 @@ struct ProviderEditView: View {
                 }
             }
             .coveGroupedBackground()
-            .navigationTitle(isNew ? "添加接口" : config.name)
+            .navigationTitle(isNew ? String(localized: "添加接口") : config.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
@@ -141,7 +141,7 @@ struct ProviderEditView: View {
         do {
             models = try await client.listModels()
             if config.model.isEmpty, let first = models.first { config.model = first }
-            result = (true, "找到 \(models.count) 个模型。")
+            result = (true, String(localized: "找到 \(models.count) 个模型。"))
         } catch {
             result = (false, error.localizedDescription)
         }
@@ -154,7 +154,7 @@ struct ProviderEditView: View {
         do {
             let reply = try await client.complete(system: "只回复两个字母 OK。", messages: [.init(role: .user, content: "ping")], maxTokens: 200)
             let seconds = Date().timeIntervalSince(start).formatted(.number.precision(.fractionLength(1)))
-            result = (true, "连接成功（\(seconds) 秒）：\(reply.prefix(60))")
+            result = (true, String(localized: "连接成功（\(seconds) 秒）：\(reply.prefix(60))"))
         } catch {
             result = (false, error.localizedDescription)
         }

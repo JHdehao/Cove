@@ -62,7 +62,7 @@ final class SpeakerModels {
             }
             isInstalled = Self.filesPresent
         } catch {
-            self.error = "说话人模型下载失败：\(error.localizedDescription)"
+            self.error = String(localized: "说话人模型下载失败：\(error.localizedDescription)")
         }
     }
 
@@ -84,7 +84,7 @@ enum Diarizer {
             let file = try AVAudioFile(forReading: url)
             let seconds = Double(file.length) / file.processingFormat.sampleRate
             guard seconds <= maxSeconds else {
-                throw LLMError.service("录音超过 3 小时，手机上无法一次识别说话人。")
+                throw LLMError.service(String(localized: "录音超过 3 小时，手机上无法一次识别说话人。"))
             }
             let samples = try read(file)
 
@@ -111,7 +111,7 @@ enum Diarizer {
             }
             var labeled = segment
             if let speaker = overlap.max(by: { $0.value < $1.value })?.key {
-                if names[speaker] == nil { names[speaker] = "说话人 \(names.count + 1)" }
+                if names[speaker] == nil { names[speaker] = String(localized: "说话人 \(names.count + 1)") }
                 labeled.speaker = names[speaker]
             }
             return labeled

@@ -25,10 +25,11 @@ jobs:
         run: |
           set -o pipefail
           # 每个包可辨认：build 号 = CI 运行序号，版本号 0.1.<序号>（SideStore 按版本号判断有无更新），
-          # 提交号写进 Info.plist（设置页底部显示）
+          # 提交号写进 Info.plist（设置页底部显示）；旁加载包买不了内购，COVE_UNLOCKED 直接解锁 Pro
           xcodebuild -project Cove.xcodeproj -scheme Cove -configuration Release \
             MARKETING_VERSION=0.1.${{ github.run_number }} CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             COVE_COMMIT=${GITHUB_SHA::7} \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) COVE_UNLOCKED' \
             -derivedDataPath build/dd \
             -destination 'generic/platform=iOS' \
             -skipPackagePluginValidation -skipMacroValidation \

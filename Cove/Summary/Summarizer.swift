@@ -62,7 +62,7 @@ final class Summarizer {
                 } else {
                     var notes: [String] = []
                     for (index, chunk) in chunks.enumerated() {
-                        phase = "分段整理 \(index + 1)/\(chunks.count)"
+                        phase = String(localized: "分段整理 \(index + 1)/\(chunks.count)")
                         notes.append(try await client.complete(system: Self.notesSystem(language), messages: [.init(role: .user, content: chunk)]))
                     }
                     // A small model (Apple's on-device one) can't take all the notes at once: fold them again until they fit.
@@ -73,7 +73,7 @@ final class Summarizer {
                         guard groups.count < notes.count else { break }
                         var folded: [String] = []
                         for (index, group) in groups.enumerated() {
-                            phase = "合并笔记 \(index + 1)/\(groups.count)"
+                            phase = String(localized: "合并笔记 \(index + 1)/\(groups.count)")
                             folded.append(try await client.complete(system: Self.notesSystem(language), messages: [.init(role: .user, content: group)]))
                         }
                         notes = folded
@@ -85,7 +85,7 @@ final class Summarizer {
                 if !attendees.isEmpty {
                     material += "\n\n参会人（来自日历邀请）：\(attendees)。转录里的「说话人 N」只有在内容明确（如自我介绍、被点名回应）时才对应到具体的人，不确定就保留「说话人 N」。"
                 }
-                phase = "撰写纪要"
+                phase = String(localized: "撰写纪要")
                 let system = Self.minutesSystem(template: template, language: language, glossary: glossary)
                 for try await delta in client.stream(system: system, messages: [.init(role: .user, content: material)]) {
                     text += delta
@@ -199,13 +199,12 @@ final class Summarizer {
         return title.isEmpty ? nil : title
     }
 
-    /// The open items under the "待办" heading: "- [ ] task — owner — due".
+    /// The to-dos: every "- [ ] task — owner — due" line (only the to-do section uses checkboxes,
+    /// whatever language its heading is in).
     static func actionItems(in markdown: String) -> [String] {
-        var inSection = false
         var items: [String] = []
         for line in markdown.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
-            if line.hasPrefix("#") { inSection = line.contains("待办") || line.lowercased().contains("action") }
-            guard inSection, line.hasPrefix("- [ ]") || line.hasPrefix("- [x]") else { continue }
+            guard line.hasPrefix("- [ ]") || line.hasPrefix("- [x]") else { continue }
             let item = Citations.stripped(String(line.dropFirst(5)))
             if !item.isEmpty, item != "无" { items.append(item) }
         }

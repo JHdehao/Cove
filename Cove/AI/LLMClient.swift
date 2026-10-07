@@ -18,18 +18,18 @@ enum LLMError: LocalizedError {
         switch self {
         case .http(let status, let body):
             switch status {
-            case 401: "API Key 无效或已过期（401）。请到设置 → 模型接口检查。"
-            case 403: "没有权限访问这个模型（403）。"
-            case 404: "接口地址或模型名不对（404）。\n\(body.prefix(300))"
-            case 429: "请求太频繁或额度用完了（429），稍后再试。"
-            case 503, 529: "服务暂时繁忙（\(status)），稍后再试。"
-            default: "服务返回错误（\(status)）：\(body.prefix(400))"
+            case 401: String(localized: "API Key 无效或已过期（401）。请到设置 → 模型接口检查。")
+            case 403: String(localized: "没有权限访问这个模型（403）。")
+            case 404: String(localized: "接口地址或模型名不对（404）。\n\(body.prefix(300))")
+            case 429: String(localized: "请求太频繁或额度用完了（429），稍后再试。")
+            case 503, 529: String(localized: "服务暂时繁忙（\(status)），稍后再试。")
+            default: String(localized: "服务返回错误（\(status)）：\(body.prefix(400))")
             }
-        case .badResponse: "无法解析服务的响应。"
-        case .invalidURL: "接口地址格式不正确。"
-        case .notConfigured: "还没有可用的模型接口。请到设置 → 模型接口添加一个，并选好模型。"
+        case .badResponse: String(localized: "无法解析服务的响应。")
+        case .invalidURL: String(localized: "接口地址格式不正确。")
+        case .notConfigured: String(localized: "还没有可用的模型接口。请到设置 → 模型接口添加一个，并选好模型。")
         case .service(let message): message
-        case .consentDeclined(let name): "没有发送：你选择了不把会议内容发送到「\(name)」。可以换用本地模型接口，或再试一次并同意。"
+        case .consentDeclined(let name): String(localized: "没有发送：你选择了不把会议内容发送到「\(name)」。可以换用本地模型接口，或再试一次并同意。")
         }
     }
 }
@@ -168,7 +168,7 @@ struct LLMClient: Sendable {
         do {
             (bytes, response) = try await URLSession.shared.bytes(for: request)
         } catch let error as URLError where error.code == .appTransportSecurityRequiresSecureConnection {
-            throw LLMError.service("这个地址必须用 https://。只有局域网地址、Tailscale（100.x / *.ts.net）和不带点的主机名可以用 http://。")
+            throw LLMError.service(String(localized: "这个地址必须用 https://。只有局域网地址、Tailscale（100.x / *.ts.net）和不带点的主机名可以用 http://。"))
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
@@ -212,7 +212,7 @@ struct LLMClient: Sendable {
                 case "response.completed":
                     return
                 case "response.failed":
-                    throw LLMError.service(event["response"]?["error"]?["message"]?.string ?? "生成失败。")
+                    throw LLMError.service(event["response"]?["error"]?["message"]?.string ?? String(localized: "生成失败。"))
                 default:
                     break
                 }

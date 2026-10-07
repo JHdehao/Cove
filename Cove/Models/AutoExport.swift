@@ -40,7 +40,7 @@ enum AutoExport {
             try Exporter.markdown(meeting).write(to: folder.appending(path: name), atomically: true, encoding: .utf8)
             return nil
         } catch {
-            return "自动导出失败：\(error.localizedDescription)"
+            return String(localized: "自动导出失败：\(error.localizedDescription)")
         }
     }
 }

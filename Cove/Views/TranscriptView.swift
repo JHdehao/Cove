@@ -44,7 +44,7 @@ struct TranscriptView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(CoveColor.speaker(speakers.firstIndex(of: speaker) ?? 0))
                     .contextMenu {
-                        Button { rename(speaker) } label: { Label("重命名说话人", systemImage: "pencil") }
+                        Button { rename(speaker) } label: { Label(String(localized: "重命名说话人"), systemImage: "pencil") }
                     }
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -68,11 +68,11 @@ struct TranscriptView: View {
             player.seek(segment.start)
         }
         .contextMenu {
-            Button { edit(index) } label: { Label("编辑这一句", systemImage: "pencil") }
+            Button { edit(index) } label: { Label(String(localized: "编辑这一句"), systemImage: "pencil") }
             if let speaker = segment.speaker {
-                Button { rename(speaker) } label: { Label("重命名「\(speaker)」", systemImage: "person.text.rectangle") }
+                Button { rename(speaker) } label: { Label(String(localized: "重命名「\(speaker)」"), systemImage: "person.text.rectangle") }
             }
-            Button { UIPasteboard.general.string = segment.text } label: { Label("拷贝", systemImage: "doc.on.doc") }
+            Button { UIPasteboard.general.string = segment.text } label: { Label(String(localized: "拷贝"), systemImage: "doc.on.doc") }
         }
     }
 }

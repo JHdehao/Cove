@@ -31,9 +31,9 @@ enum Appearance: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .system: "跟随系统"
-        case .light: "Claude 昼"
-        case .dark: "Claude 夜"
+        case .system: String(localized: "跟随系统")
+        case .light: String(localized: "Claude 昼")
+        case .dark: String(localized: "Claude 夜")
         }
     }
     var colorScheme: ColorScheme? {

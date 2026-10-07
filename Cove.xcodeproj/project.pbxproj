@@ -92,11 +92,16 @@
 				};
 			};
 			buildConfigurationList = C0B000000000000000000016 /* Build configuration list for PBXProject "Cove" */;
-			developmentRegion = "zh-Hans";
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				"zh-Hans",
 				en,
+				"zh-Hans",
+				"zh-Hant",
+				ja,
+				ko,
+				ru,
+				ar,
 				Base,
 			);
 			mainGroup = C0B000000000000000000002;

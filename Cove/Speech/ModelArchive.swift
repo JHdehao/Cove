@@ -10,8 +10,8 @@ enum ModelArchive {
 
         var errorDescription: String? {
             switch self {
-            case .corrupt: "模型压缩包已损坏，请重新下载。"
-            case .missing(let names): "模型压缩包里缺少文件：\(names.joined(separator: "、"))"
+            case .corrupt: String(localized: "模型压缩包已损坏，请重新下载。")
+            case .missing(let names): String(localized: "模型压缩包里缺少文件：\(names.joined(separator: ", "))")
             }
         }
     }

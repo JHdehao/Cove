@@ -27,16 +27,16 @@ struct LibraryView: View {
             }
             .coveGroupedBackground()
             .navigationTitle("会议")
-            .searchable(text: $search, prompt: "搜索标题、纪要、转录")
+            .searchable(text: $search, prompt: String(localized: "搜索标题、纪要、转录"))
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button { importing = [.audio, .movie] } label: { Label("导入录音 / 视频", systemImage: "waveform") }
-                        Button { importing = Self.transcriptTypes } label: { Label("导入转录文件（txt / srt / vtt）", systemImage: "doc.text") }
-                        Button { showPaste = true } label: { Label("粘贴转录文本", systemImage: "doc.on.clipboard") }
+                        Button { importing = [.audio, .movie] } label: { Label(String(localized: "导入录音 / 视频"), systemImage: "waveform") }
+                        Button { importing = Self.transcriptTypes } label: { Label(String(localized: "导入转录文件（txt / srt / vtt）"), systemImage: "doc.text") }
+                        Button { showPaste = true } label: { Label(String(localized: "粘贴转录文本"), systemImage: "doc.on.clipboard") }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -94,10 +94,10 @@ struct LibraryView: View {
     private func addImported(title: String, text: String) {
         let segments = TranscriptImport.parse(text)
         guard !segments.isEmpty else {
-            importError = "没有读到内容。"
+            importError = String(localized: "没有读到内容。")
             return
         }
-        let meeting = Meeting(title: title.isEmpty ? "导入的会议" : title)
+        let meeting = Meeting(title: title.isEmpty ? String(localized: "导入的会议") : title)
         meeting.segments = segments
         meeting.duration = segments.last?.end ?? 0
         context.insert(meeting)
@@ -192,13 +192,13 @@ struct MeetingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(meeting.title.isEmpty ? "未命名会议" : meeting.title)
+                Text(meeting.title.isEmpty ? String(localized: "未命名会议") : meeting.title)
                     .font(.body.weight(.medium))
                     .lineLimit(1)
                 if meeting.isRecording {
-                    CoveTag(text: "录音中")
+                    CoveTag(text: String(localized: "录音中"))
                 } else if meeting.summary.isEmpty {
-                    CoveTag(text: meeting.segmentsData.isEmpty ? "未转录" : "未总结")
+                    CoveTag(text: meeting.segmentsData.isEmpty ? String(localized: "未转录") : String(localized: "未总结"))
                 }
             }
             if !meeting.gist.isEmpty {

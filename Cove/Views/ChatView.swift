@@ -11,7 +11,7 @@ struct ChatView: View {
     @State private var task: Task<Void, Never>?
     @FocusState private var inputFocused: Bool
 
-    private let suggestions = ["这次会议最重要的三件事是什么？", "每个人分别负责什么？", "有哪些分歧还没解决？", "写一封会后跟进邮件"]
+    private let suggestions = [String(localized: "这次会议最重要的三件事是什么？"), String(localized: "每个人分别负责什么？"), String(localized: "有哪些分歧还没解决？"), String(localized: "写一封会后跟进邮件")]
 
     var body: some View {
         VStack(spacing: 0) {
