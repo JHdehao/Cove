@@ -48,7 +48,8 @@ jobs:
 
       - name: 编译报错
         if: failure()
-        run: grep -E ": error:|BUILD FAILED|error:" "$RUNNER_TEMP/archive.log" | sort -u | head -40 || true
+        run: |
+          grep -E "error:|BUILD FAILED" "$RUNNER_TEMP/archive.log" | sort -u | head -40 || true
 
       - name: 导出并上传到 App Store Connect
         run: |
