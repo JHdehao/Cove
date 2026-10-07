@@ -1,0 +1,288 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleDisplayName": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        }
+      }
+    },
+    "CFBundleName": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove"
+          }
+        }
+      }
+    },
+    "NSCalendarsFullAccessUsageDescription": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "عند بدء التسجيل يقرأ حدث التقويم الجاري لعنوان الاجتماع والحضور. لا يُستخدم إلا إذا فعّلته في الإعدادات."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When recording starts, reads the calendar event in progress for the meeting title and attendees. Only used if you turn it on in Settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "録音開始時に進行中のカレンダー予定を読み取り、会議の件名と参加者に使います。設定でオンにした場合のみ使用します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹음을 시작할 때 진행 중인 캘린더 일정을 읽어 회의 제목과 참석자에 사용합니다. 설정에서 켠 경우에만 사용합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При начале записи читает текущее событие календаря для названия встречи и участников. Используется, только если включено в Настройках."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音开始时读取正在进行的日历事件，带入会议标题和参会人。只在你于设置里打开后使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音開始時讀取正在進行的日曆事件，帶入會議標題和參會人。只在你於設定裡開啟後使用。"
+          }
+        }
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "للاتصال بخوادم النماذج على شبكتك المحلية أو Tailscale (مثل Ollama)."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connects to model servers on your local network or Tailscale (such as Ollama)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LAN または Tailscale 上のモデルサーバ（Ollama など）に接続します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 네트워크나 Tailscale의 모델 서버(예: Ollama)에 연결합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключение к серверам моделей в локальной сети или Tailscale (например, Ollama)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接局域网或 Tailscale 上的本地模型接口（如 Ollama）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線區域網或 Tailscale 上的本地模型介面（如 Ollama）。"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يستخدم Cove الميكروفون لتسجيل الاجتماعات. تبقى التسجيلات على هذا الجهاز."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cove uses the microphone to record meetings. Recordings stay on this device."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会議の録音にマイクを使います。録音はこの端末にのみ保存されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "회의를 녹음하려면 마이크가 필요합니다. 녹음은 이 기기에만 저장됩니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Микрофон нужен для записи встреч. Записи хранятся только на этом устройстве."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制会议需要使用麦克风。录音只保存在本机。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製會議需要使用麥克風。錄音只儲存在本機。"
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لإضافة المهام من محضر الاجتماع إلى التذكيرات."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds the action items from meeting minutes to Reminders."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "議事録の ToDo をリマインダーに追加します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "회의록의 할 일을 미리 알림에 추가합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавляет задачи из протокола в Напоминания."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把会议纪要里的待办导入提醒事项。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把會議紀要裡的待辦匯入提醒事項。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
