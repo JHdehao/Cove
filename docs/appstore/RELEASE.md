@@ -18,12 +18,23 @@ GitHub → Cove → Settings → Secrets and variables → Actions：
 | `ASC_KEY_P8` | Secret | `base64 -w0 AuthKey_XXXX.p8` 的输出 |
 | `BUNDLE_ID` | Variable（可选） | 默认 `com.jhdehao.cove` |
 
+## 2.5 Cove Pro 内购（一次性，0.99 美元）
+1. App Store Connect → 协议、税务和银行业务：签署**付费 App 协议**，填银行账户和税务表（中国大陆个人填 W-8BEN）。免费 App 不需要，但**只要有内购就必须签**，否则商品一直显示「缺少元数据」。
+2. 你的 App → 功能 → App 内购买项目 → 新建，类型选**非消耗型**：
+   - 产品 ID：`<BUNDLE_ID>.pro`（默认 `com.jhdehao.cove.pro`，和 App 内一致，App 按 Bundle ID 自动拼）
+   - 参考名称：Cove Pro；价格：0.99 美元档
+   - 本地化（显示名称 / 描述）：见 `metadata.md` 末尾「内购」一节，七种语言都填
+   - 审核截图：设置 → Cove Pro 打开的购买页截图（截图流水线不拍这页，真机或模拟器手动截一张）
+3. **首次提交版本时**，在版本页「App 内购买项目和订阅」里勾选 Cove Pro，和 App 一起审。
+4. 旁加载（SideStore）包用 `COVE_UNLOCKED` 编译，Pro 默认解锁，不影响上架包。
+
 ## 3. 出包上传
 Actions → **App Store (TestFlight upload)** → Run workflow，填版本号（首发 `1.0.0`）。10–30 分钟后在 TestFlight 里出现，可先装到自己手机真机验收（见 §5）。
 
 ## 4. 商店页面
 - 文案：`docs/appstore/metadata.md`（名称、副标题、描述、关键词、审核备注都已写好，直接粘贴）。
-- 截图：Actions → **App Store screenshots** → Run，下载产物 `Cove-screenshots`：iPhone 6.9" 与 iPad 13" 各 4 张（资料库 / 纪要 / 转录 / 对话），昼夜两套任选。
+- 截图：Actions → **App Store screenshots** → Run，下载产物 `Cove-screenshots`：按语言分目录（zh-Hans / zh-Hant / en / ja / ko / ru / ar），每个目录里 iPhone 6.9" 与 iPad 13" 各 4 张（0 资料库 / 1 纪要 / 2 转录 / 3 对话）。日韩俄阿的示例会议内容是英文，界面是对应语言。
+- 本地化：App Store Connect 里给版本加上 繁体中文、英语、日语、韩语、俄语、阿拉伯语 六个本地化，文案在 `metadata.md`。
 - 隐私政策 URL：`https://github.com/JHdehao/Cove/blob/main/PRIVACY.md`
 - 技术支持 URL：`https://github.com/JHdehao/Cove/issues`
 - App 隐私（营养标签）：选 **「不收集数据」**。依据：无账号、无统计/崩溃上报/广告 SDK；转录只在用户主动选择、逐服务同意后发给用户自己配置的模型服务，开发者不经手。
@@ -39,7 +50,9 @@ CI 只验证了编译，以下需要在真机上过一遍（审核员也会做�
 - [ ] 录音中从多任务界面划掉 App → 重开 → 提示「已恢复未结束的录音」，内容在
 - [ ] 来电（或用 FaceTime 打进来）中断后自动继续，转录里有「中断」标记
 - [ ] 添加一个云端接口 → 第一次生成纪要时弹出发送同意 → 设置 → 隐私 里能撤回
-- [ ] 下载说话人模型 → 会议菜单「识别说话人」→ 转录出现「说话人 1/2」，长按能改名
+- [ ] 未购买时会议菜单显示「识别说话人（Pro）」→ 购买页价格正常显示 → 沙盒账号购买成功 → 下载说话人模型 → 转录出现「说话人 1/2」，长按能改名
+- [ ] 删掉 App 重装 → 设置 →「恢复购买」能恢复 Pro
+- [ ] 系统语言切到英文 / 日文 / 阿拉伯文各看一眼：文案无中文残留，阿拉伯文从右往左排版正常
 - [ ] 待办导入提醒事项（确认页可取消勾选）；日历联动；自动导出到文件夹
 - [ ] iPad 上各页面能正常打开（App 支持 iPad，审核员可能用 iPad 测）
 

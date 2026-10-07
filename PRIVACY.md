@@ -17,6 +17,8 @@ Cove 是一款会议录音、转录与纪要 App。我们的原则是：**你的
 
 **API Key** 保存在系统钥匙串中，只用于向对应服务发起请求。
 
+**内购。** Cove Pro 通过 Apple 的 App 内购买完成，付款和账户信息由 Apple 处理，开发者收不到你的姓名、邮箱或付款信息；App 只在本机读取「是否已购买」。
+
 **模型下载。** 开源语音模型从 GitHub / Hugging Face 官方地址下载，下载过程不附带任何个人信息。
 
 **权限。** 麦克风（录音）、提醒事项（你主动导入待办时）、日历（你在设置里打开「从日历带入会议信息」时）、本地网络（连接局域网中的模型接口时）。均只在对应功能中使用。
@@ -29,4 +31,4 @@ Cove 是一款会议录音、转录与纪要 App。我们的原则是：**你的
 
 ## English
 
-Cove records, transcribes and summarizes meetings. **We collect no data**: there is no account, analytics, crash reporting, advertising or tracking. Recordings, transcripts, minutes and chats stay on your device; speech recognition runs on device. Minutes are written by a language model you choose: Apple's on-device model (nothing leaves the device), your own local server, or a cloud provider using your own API key — in which case the transcript is sent over HTTPS to that provider under its privacy policy, **only after you explicitly agree the first time**; you can withdraw this in Settings → Privacy. API keys are kept in the system Keychain. Please tell participants before recording and follow local law. Contact: https://github.com/JHdehao/Cove/issues
+Cove records, transcribes and summarizes meetings. **We collect no data**: there is no account, analytics, crash reporting, advertising or tracking. Recordings, transcripts, minutes and chats stay on your device; speech recognition runs on device. Minutes are written by a language model you choose: Apple's on-device model (nothing leaves the device), your own local server, or a cloud provider using your own API key — in which case the transcript is sent over HTTPS to that provider under its privacy policy, **only after you explicitly agree the first time**; you can withdraw this in Settings → Privacy. API keys are kept in the system Keychain. Cove Pro is bought through Apple's In-App Purchase; Apple handles payment and the developer receives no personal or payment information. Please tell participants before recording and follow local law. Contact: https://github.com/JHdehao/Cove/issues

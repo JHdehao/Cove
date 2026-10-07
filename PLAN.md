@@ -19,6 +19,7 @@ M0–M3 + M5 部分**代码已写完，未编译**（本机无 Xcode，等 GitHu
 - 零配置：iOS 26 默认苹果识别；Apple 本机模型（FoundationModels，`AI/AppleModel.swift`）作为接口，Apple 智能开着时自动加；纪要分段笔记多轮折叠以适配约 4k token 上下文；示例会议（`Models/SampleMeeting.swift`）。
 - M4 说话人分离已做（`Speech/Speakers.swift`，模型约 35 MB 单独下载，可指定人数）；转录逐句编辑；会中文字笔记；待办确认页；日历联动；自动导出文件夹。
 - 发布：`.github/workflows/appstore.yml`、`screenshots.yml`，清单见 `docs/appstore/RELEASE.md`。
+- 2026-10-07 二轮：界面七语（`Localizable.xcstrings` / `InfoPlist.xcstrings`，源语言 en、key 为中文原文；新增文案后跑 `export-strings.yml` 取准确 key，再补七语翻译）；纪要语言 8 项；Cove Pro 非消耗型内购（`App/Pro.swift`，商品 `<bundle>.pro`，0.99 美元），只锁说话人识别；SideStore 包 `COVE_UNLOCKED`；示例会议简 / 繁 / 英三版；截图按七语出。
 - 仍未做：实时活动 / 灵动岛（需 widget extension target）、声纹库、跨会议语义搜索、英文界面、Mac 版。
 
 ## 1. 关键决策（2026-10-04 用户定）
