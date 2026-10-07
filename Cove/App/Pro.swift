@@ -30,7 +30,7 @@ final class Pro {
         // Last known state, so Pro features don't flicker off at launch while StoreKit answers.
         isUnlocked = UserDefaults.standard.bool(forKey: Self.cacheKey)
         updates = Task { [weak self] in
-            for await result in Transaction.updates { await self?.handle(result) }
+            for await result in StoreKit.Transaction.updates { await self?.handle(result) }
         }
         Task {
             await refresh()
@@ -50,7 +50,7 @@ final class Pro {
     func refresh() async {
         #if !COVE_UNLOCKED
         var owned = false
-        for await result in Transaction.currentEntitlements {
+        for await result in StoreKit.Transaction.currentEntitlements {
             if case .verified(let transaction) = result, transaction.productID == Self.productID, transaction.revocationDate == nil {
                 owned = true
             }
@@ -100,7 +100,7 @@ final class Pro {
         message = isUnlocked ? String(localized: "已恢复 Cove Pro。") : String(localized: "这个 Apple 账号没有购买过 Cove Pro。")
     }
 
-    private func handle(_ result: VerificationResult<Transaction>) async {
+    private func handle(_ result: VerificationResult<StoreKit.Transaction>) async {
         guard case .verified(let transaction) = result else { return }
         await transaction.finish()
         if transaction.productID == Self.productID { set(transaction.revocationDate == nil) }
