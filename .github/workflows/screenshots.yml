@@ -1,6 +1,6 @@
 name: App Store screenshots
 
-# 手动触发：模拟器里打开示例会议，截 iPhone 6.9" 与 iPad 13" 的昼 / 夜两套图，作为产物下载。
+# 手动触发：模拟器里打开示例会议，按 7 种界面语言各截 iPhone 6.9" 与 iPad 13" 四张（资料库 / 纪要 / 转录 / 对话），作为产物下载。
 on:
   workflow_dispatch:
 
@@ -32,23 +32,27 @@ jobs:
             xcrun simctl boot "$dev" || true
             xcrun simctl bootstatus "$dev" -b
             xcrun simctl status_bar "$dev" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
-            xcrun simctl install "$dev" "$APP"
             # 首次开机的系统通知（如「Ready for Apple Intelligence」）会挡住标题：先等它消失
             sleep 45
-            for mode in light dark; do
-              xcrun simctl ui "$dev" appearance $mode
+            xcrun simctl ui "$dev" appearance light
+            for loc in zh-Hans:zh_CN zh-Hant:zh_TW en:en_US ja:ja_JP ko:ko_KR ru:ru_RU ar:ar_SA; do
+              lang=${loc%%:*}; region=${loc#*:}
+              # 每种语言重装一次：示例会议按语言生成，资料库里只留这一场
+              xcrun simctl uninstall "$dev" "$ID" 2>/dev/null || true
+              xcrun simctl install "$dev" "$APP"
+              mkdir -p "shots/$lang"
               n=0
               for tab in 纪要 转录 对话; do
                 n=$((n+1))
                 xcrun simctl terminate "$dev" "$ID" 2>/dev/null || true
-                xcrun simctl launch "$dev" "$ID" -AppleLanguages "(zh-Hans)" -AppleLocale zh_CN -CoveDemo YES -CoveTab "$tab"
+                xcrun simctl launch "$dev" "$ID" -AppleLanguages "($lang)" -AppleLocale "$region" -CoveDemo YES -CoveTab "$tab"
                 sleep 6
-                xcrun simctl io "$dev" screenshot "shots/${kind}-${mode}-${n}-${tab}.png"
+                xcrun simctl io "$dev" screenshot "shots/$lang/${kind}-${n}.png"
               done
               xcrun simctl terminate "$dev" "$ID" 2>/dev/null || true
-              xcrun simctl launch "$dev" "$ID" -AppleLanguages "(zh-Hans)" -AppleLocale zh_CN -CoveDemo NO
+              xcrun simctl launch "$dev" "$ID" -AppleLanguages "($lang)" -AppleLocale "$region" -CoveDemo NO
               sleep 5
-              xcrun simctl io "$dev" screenshot "shots/${kind}-${mode}-0-资料库.png"
+              xcrun simctl io "$dev" screenshot "shots/$lang/${kind}-0.png"
             done
             xcrun simctl shutdown "$dev" || true
           done
