@@ -29,7 +29,7 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
           for v in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
-            [ -n "${!v}" ] || { echo "::error::缺少 $v，见 docs/appstore/RELEASE.md"; exit 1; }
+            [ -n "${!v}" ] || { echo "::error::缺少 ${v}，见 docs/appstore/RELEASE.md"; exit 1; }
           done
           echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
 
