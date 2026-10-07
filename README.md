@@ -5,6 +5,18 @@
 - **转录在本机**：[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 两段式——[X-ASR](https://github.com/Gilgamesh-J/X-ASR) 流式出字（约 0.2 秒），X-ASR 离线版句末定稿，自动增益让远处的声音也能听清，Silero VAD 断句；离线运行，录音不上传。
 - **总结用你自己的模型接口**：Claude、OpenAI、Gemini、DeepSeek、通义千问、Kimi、智谱、OpenRouter，或本地 Ollama / LM Studio / 任何 OpenAI 兼容接口。
 - 纪要每条结论带出处，点一下跳到原话并播放。
+- **说话人识别在本机**：会后用 pyannote 分割 + 3D-Speaker 声纹分出「说话人 1/2/3」，长按改名；转录逐句可改。
+- **录得稳**：每分钟落盘一段，App 被杀最多丢一分钟、重开自动恢复；来电、换耳机自动接续；过热自动降级。
+- **零配置可用**：iOS 26 默认苹果系统识别，Apple 智能开着时自动用 Apple 本机模型写纪要；空状态可打开示例会议。
+- 会中手写笔记（纪要围绕它展开）、待办确认后导入提醒事项、日历带入标题与参会人、纪要自动导出到文件夹（Obsidian）。
+
+## 隐私
+
+不收集任何数据（无账号、统计、崩溃上报、广告）。会议内容第一次发往某个云端模型服务前逐服务征得同意，可在设置里撤回。见 [PRIVACY.md](PRIVACY.md)。
+
+## 上架
+
+清单与文案在 [`docs/appstore/`](docs/appstore/RELEASE.md)；`appstore.yml` 云端签名上传 TestFlight，`screenshots.yml` 自动出商店截图。
 
 ## 许可证
 

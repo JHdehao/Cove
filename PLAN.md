@@ -13,6 +13,14 @@ M0–M3 + M5 部分**代码已写完，未编译**（本机无 Xcode，等 GitHu
 - 2026-10-04 加入可切换识别引擎：开源 X-ASR（默认，iOS 18+）/ 苹果 SpeechAnalyzer（iOS 26+，免下载、省电、多语言，闭源），待真机 A/B 对比准确率。
 - 未做：说话人分离（M4）、实时活动 / 灵动岛、Mac 版、跨会议搜索。
 
+### 2026-10-07 上架迭代（按社区调研结论）
+- 录音不丢：边录边写库、音频每分钟一段（`AudioParts`）、启动恢复（`Models/Recovery.swift`）；耳机/线路切换、媒体服务重置、无声 3 秒看门狗；来电中断记为 `.gap` 标记；过热先停实时纪要再停字幕、会后重转。
+- 合规：第三方 AI 发送前逐服务同意（`AIConsent`，审核指南 5.1.2(i)）、`PrivacyInfo.xcprivacy`、ATS 只放行局域网与 `ts.net`、`ITSAppUsesNonExemptEncryption=NO`、开录前告知提醒、`PRIVACY.md`、开源许可页。Ollama 预设地址去掉了 omarchy（自己用时改回 `http://omarchy:11434/v1`）。
+- 零配置：iOS 26 默认苹果识别；Apple 本机模型（FoundationModels，`AI/AppleModel.swift`）作为接口，Apple 智能开着时自动加；纪要分段笔记多轮折叠以适配约 4k token 上下文；示例会议（`Models/SampleMeeting.swift`）。
+- M4 说话人分离已做（`Speech/Speakers.swift`，模型约 35 MB 单独下载，可指定人数）；转录逐句编辑；会中文字笔记；待办确认页；日历联动；自动导出文件夹。
+- 发布：`.github/workflows/appstore.yml`、`screenshots.yml`，清单见 `docs/appstore/RELEASE.md`。
+- 仍未做：实时活动 / 灵动岛（需 widget extension target）、声纹库、跨会议语义搜索、英文界面、Mac 版。
+
 ## 1. 关键决策（2026-10-04 用户定）
 
 | 项 | 决定 |
