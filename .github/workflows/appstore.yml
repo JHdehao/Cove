@@ -1,0 +1,75 @@
+name: App Store (TestFlight upload)
+
+# 手动触发：签名 → 打包 → 直接上传到 App Store Connect（之后在网页里提交审核）。
+# 需要的仓库设置（Settings → Secrets and variables → Actions），见 docs/appstore/RELEASE.md：
+#   secrets: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8（.p8 文件内容的 base64）
+#   variables: BUNDLE_ID（可选，默认 com.jhdehao.cove）
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号（App Store 上显示的，如 1.0.0）
+        required: true
+        default: "1.0.0"
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.jhdehao.cove' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查密钥
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          for v in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!v}" ] || { echo "::error::缺少 $v，见 docs/appstore/RELEASE.md"; exit 1; }
+          done
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive（云端自动签名）
+        run: |
+          set -o pipefail
+          xcodebuild -project Cove.xcodeproj -scheme Cove -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Cove.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            DEVELOPMENT_TEAM="$TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="${{ inputs.version }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            COVE_COMMIT=${GITHUB_SHA::7} \
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -40
+
+      - name: 编译报错
+        if: failure()
+        run: grep -E ": error:|BUILD FAILED|error:" "$RUNNER_TEMP/archive.log" | sort -u | head -40 || true
+
+      - name: 导出并上传到 App Store Connect
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Cove.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "已上传 ${{ inputs.version }} (${{ github.run_number }})，约 10–30 分钟后出现在 App Store Connect → TestFlight。"
+
+      - name: 清理
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
