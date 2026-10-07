@@ -17,6 +17,17 @@ struct ProviderEditView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if config.wire == .appleOnDevice {
+                    Section {
+                        TextField("名称", text: $config.name)
+                        Stepper(value: $config.contextChars, in: 800...3000, step: 200) {
+                            LabeledContent("单次最多字数", value: config.contextChars.formatted())
+                        }
+                    } footer: {
+                        Text(AppleModel.unavailableReason ?? ProviderPreset.apple.note)
+                    }
+                    .coveCard()
+                } else {
                 Section {
                     TextField("名称", text: $config.name)
                     TextField("接口地址", text: $config.baseURL)
@@ -24,7 +35,7 @@ struct ProviderEditView: View {
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
                     Picker("请求格式", selection: $config.wire) {
-                        ForEach(WireFormat.allCases) { Text($0.label).tag($0) }
+                        ForEach(WireFormat.network) { Text($0.label).tag($0) }
                     }
                     SecureField(preset?.needsKey == false ? "API Key（本地接口可留空）" : "API Key", text: $key)
                         .textInputAutocapitalization(.never)
@@ -62,6 +73,7 @@ struct ProviderEditView: View {
                     Text("会议转录超过「单次最多字数」时先分段整理再合并，按模型的上下文长度设置（中文约 1 字 ≈ 1 token）。")
                 }
                 .coveCard()
+                }
 
                 Section {
                     Button {
@@ -118,6 +130,7 @@ struct ProviderEditView: View {
     /// The client for what's on screen, key included, before it's saved.
     private var client: LLMClient {
         var client = LLMClient(config)
+        client.checksConsent = false
         client.apiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         return client
     }

@@ -61,9 +61,15 @@ enum Transcription {
         return false
     }
 
+    /// Before the user picks: Apple's where there is one and the open models aren't downloaded,
+    /// so the first meeting can be recorded and captioned straight away.
+    static var defaultEngine: TranscriptionEngine {
+        appleSupported && !SpeechModels.filesPresent ? .apple : .open
+    }
+
     /// The engine chosen in Settings, falling back to the open one where Apple's isn't available.
     static var engine: TranscriptionEngine {
-        let chosen = TranscriptionEngine(rawValue: UserDefaults.standard.string(forKey: SpeechKey.engine) ?? "") ?? .open
+        let chosen = TranscriptionEngine(rawValue: UserDefaults.standard.string(forKey: SpeechKey.engine) ?? "") ?? defaultEngine
         return chosen == .apple && appleSupported ? .apple : .open
     }
 

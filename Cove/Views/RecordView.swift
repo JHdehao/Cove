@@ -71,6 +71,7 @@ struct RecordView: View {
         }
         .coveCanvas()
         .tint(CoveColor.text)
+        .modifier(AIConsentPrompt())
         .task {
             if consentAcknowledged { await begin() } else { askConsent = true }
         }
@@ -329,7 +330,12 @@ struct RecordView: View {
     // MARK: Flow
 
     private func begin() async {
-        notes.configure(provider: ProviderStore.shared.active, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary,
+        // Ask about sending the transcript now, not mid-meeting; saying no just leaves the running notes off.
+        var provider = ProviderStore.shared.active
+        if let active = provider, active.isUsable, !AIConsent.shared.isGranted(active) {
+            do { try await AIConsent.shared.ensure(active) } catch { provider = nil }
+        }
+        notes.configure(provider: provider, language: SummaryLanguage(rawValue: language) ?? .auto, glossary: glossary,
                         refresh: LiveRefresh(rawValue: liveRefresh) ?? .standard)
         if Transcription.isReady { startEngine() }
         let meeting = Meeting(title: "会议 \(Date.now.formatted(date: .abbreviated, time: .shortened))")

@@ -12,6 +12,7 @@ enum LLMError: LocalizedError {
     case invalidURL
     case notConfigured
     case service(String)
+    case consentDeclined(String)
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,7 @@ enum LLMError: LocalizedError {
         case .invalidURL: "接口地址格式不正确。"
         case .notConfigured: "还没有可用的模型接口。请到设置 → 模型接口添加一个，并选好模型。"
         case .service(let message): message
+        case .consentDeclined(let name): "没有发送：你选择了不把会议内容发送到「\(name)」。可以换用本地模型接口，或再试一次并同意。"
         }
     }
 }
@@ -38,6 +40,8 @@ struct LLMClient: Sendable {
     var apiKey: String
     /// Stable per conversation; OpenCode wants it in `x-opencode-session` for routing and prompt caching.
     var session: String
+    /// Ask before meeting content leaves the phone (`AIConsent`). Off for the connection test, which sends only "ping".
+    var checksConsent = true
 
     /// Without a session each client gets its own: OpenCode Go rejects requests that lack one (400).
     init(_ config: ProviderConfig, session: String = UUID().uuidString) {
@@ -62,6 +66,8 @@ struct LLMClient: Sendable {
             if !apiKey.isEmpty { headers["x-api-key"] = apiKey }
         case .chatCompletions, .responses:
             if !apiKey.isEmpty { headers["Authorization"] = "Bearer \(apiKey)" }
+        case .appleOnDevice:
+            break
         }
         if config.host.hasSuffix("opencode.ai") { headers["x-opencode-session"] = session }
         return headers
@@ -71,6 +77,7 @@ struct LLMClient: Sendable {
 
     /// The service's model ids (GET /v1/models, or /models on OpenAI-style APIs).
     func listModels() async throws -> [String] {
+        if config.wire == .appleOnDevice { return [AppleModel.modelID] }
         let path = config.wire == .anthropic ? "/v1/models?limit=100" : "/models"
         guard let url = URL(string: base + path) else { throw LLMError.invalidURL }
         var request = URLRequest(url: url, timeoutInterval: 15)
@@ -120,6 +127,11 @@ struct LLMClient: Sendable {
 
     private func run(system: String, messages: [ChatMessage], maxTokens: Int?, yield: (String) -> Void) async throws {
         guard config.isUsable else { throw LLMError.notConfigured }
+        if checksConsent, !AIConsent.exempt(config) { try await AIConsent.shared.ensure(config) }
+        if config.wire == .appleOnDevice {
+            try await AppleModel.stream(system: system, messages: messages, yield: yield)
+            return
+        }
         let history: [JSONValue] = messages.map { ["role": .string($0.role.rawValue), "content": .string($0.content)] }
         let path: String
         var body: [String: JSONValue] = ["model": .string(config.model), "stream": true]
@@ -133,6 +145,8 @@ struct LLMClient: Sendable {
             path = "/chat/completions"
             body["messages"] = .array([["role": "system", "content": .string(system)]] + history)
             if let maxTokens { body["max_tokens"] = .number(Double(maxTokens)) }
+        case .appleOnDevice:
+            return
         case .responses:
             path = "/responses"
             body["instructions"] = .string(system)
@@ -150,7 +164,12 @@ struct LLMClient: Sendable {
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
         request.httpBody = JSONValue.object(body).encoded()
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let (bytes, response): (URLSession.AsyncBytes, URLResponse)
+        do {
+            (bytes, response) = try await URLSession.shared.bytes(for: request)
+        } catch let error as URLError where error.code == .appTransportSecurityRequiresSecureConnection {
+            throw LLMError.service("这个地址必须用 https://。只有局域网地址、Tailscale（100.x / *.ts.net）和不带点的主机名可以用 http://。")
+        }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             var data = Data()
@@ -178,6 +197,8 @@ struct LLMClient: Sendable {
                 throw LLMError.service(message)
             }
             switch config.wire {
+            case .appleOnDevice:
+                return
             case .anthropic:
                 if event["type"]?.string == "message_stop" { return }
                 if event["type"]?.string == "content_block_delta", event["delta"]?["type"]?.string == "text_delta",

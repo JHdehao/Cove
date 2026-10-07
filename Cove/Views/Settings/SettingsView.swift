@@ -11,9 +11,10 @@ struct SettingsView: View {
     @AppStorage(SummaryKey.liveRefresh) private var liveRefresh = LiveRefresh.standard.rawValue
     @State private var store = ProviderStore.shared
     @State private var models = SpeechModels.shared
-    @AppStorage(SpeechKey.engine) private var speechEngine = TranscriptionEngine.open.rawValue
+    @AppStorage(SpeechKey.engine) private var speechEngine = Transcription.defaultEngine.rawValue
     @AppStorage(SpeechKey.appleLanguage) private var appleLanguage = AppleSpeechLanguage.mandarin.rawValue
     @State private var adding = false
+    @State private var consent = AIConsent.shared
     @State private var editing: ProviderConfig?
 
     var body: some View {
@@ -109,6 +110,31 @@ struct SettingsView: View {
                 .coveCard()
 
                 Section {
+                    LabeledContent("录音与转录", value: "只存在本机")
+                    if !consent.grantedHosts.isEmpty {
+                        LabeledContent("已同意发送到", value: consent.grantedHosts.joined(separator: "、"))
+                        Button("撤回所有发送同意", role: .destructive) { consent.revokeAll() }
+                    }
+                    Link("隐私政策", destination: AppLinks.privacy)
+                } header: {
+                    Text("隐私")
+                } footer: {
+                    Text("Cove 不收集任何数据，没有账号、统计或广告。生成纪要时，会议转录只发送到你自己选的模型接口；第一次发送到某个云端服务前会先问你。")
+                }
+                .coveCard()
+
+                Section {
+                    Link("源代码（GitHub）", destination: AppLinks.source)
+                    NavigationLink("开源许可") { LicensesView() }
+                    Link("反馈问题", destination: AppLinks.issues)
+                } header: {
+                    Text("关于")
+                } footer: {
+                    Text("Cove 以 GNU AGPL-3.0 开源。")
+                }
+                .coveCard()
+
+                Section {
                     Picker("外观", selection: $appearance) {
                         ForEach(Appearance.allCases) { Text($0.label).tag($0.rawValue) }
                     }
@@ -139,7 +165,7 @@ struct PresetPicker: View {
             List {
                 Section("云端 API") { rows(ProviderPreset.all.filter { !$0.isLocal && !$0.id.hasPrefix("custom") }) }
                     .coveCard()
-                Section("本地模型") { rows(ProviderPreset.all.filter(\.isLocal)) }
+                Section("本地模型") { rows((AppleModel.isAvailable ? [ProviderPreset.apple] : []) + ProviderPreset.all.filter(\.isLocal)) }
                     .coveCard()
                 Section("其他") { rows(ProviderPreset.all.filter { $0.id.hasPrefix("custom") }) }
                     .coveCard()
@@ -186,6 +212,43 @@ struct TextPage: View {
         }
         .coveGroupedBackground()
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+enum AppLinks {
+    static let source = URL(string: "https://github.com/JHdehao/Cove")!
+    static let privacy = URL(string: "https://github.com/JHdehao/Cove/blob/main/PRIVACY.md")!
+    static let issues = URL(string: "https://github.com/JHdehao/Cove/issues")!
+}
+
+/// The open-source parts Cove is built from, and their licenses.
+struct LicensesView: View {
+    private let items: [(String, String, String)] = [
+        ("sherpa-onnx", "Apache-2.0", "https://github.com/k2-fsa/sherpa-onnx"),
+        ("ONNX Runtime", "MIT", "https://github.com/microsoft/onnxruntime"),
+        ("X-ASR-zh-en 语音模型", "Apache-2.0", "https://github.com/Gilgamesh-J/X-ASR"),
+        ("Silero VAD", "MIT", "https://github.com/snakers4/silero-vad"),
+        ("pyannote segmentation 3.0", "MIT", "https://huggingface.co/pyannote/segmentation-3.0"),
+        ("3D-Speaker CAM++", "Apache-2.0", "https://github.com/modelscope/3D-Speaker"),
+    ]
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(items, id: \.0) { name, license, url in
+                    Link(destination: URL(string: url)!) {
+                        LabeledContent(name, value: license)
+                    }
+                    .foregroundStyle(CoveColor.text)
+                }
+            } footer: {
+                Text("语音模型由 App 在使用时从官方地址下载，不随 App 分发。")
+            }
+            .coveCard()
+        }
+        .coveGroupedBackground()
+        .navigationTitle("开源许可")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

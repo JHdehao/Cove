@@ -9,6 +9,11 @@ enum WireFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     case chatCompletions
     /// OpenAI Responses (`/responses`): OpenAI's newer models.
     case responses
+    /// Apple's on-device model (`AppleModel`); no address or key.
+    case appleOnDevice
+
+    /// The formats a user can pick for an endpoint they add themselves.
+    static let network: [WireFormat] = [.anthropic, .chatCompletions, .responses]
 
     var id: String { rawValue }
 
@@ -17,6 +22,7 @@ enum WireFormat: String, Codable, CaseIterable, Identifiable, Sendable {
         case .anthropic: "Anthropic Messages"
         case .chatCompletions: "Chat Completions"
         case .responses: "Responses"
+        case .appleOnDevice: "Apple 本机"
         }
     }
 }
@@ -34,6 +40,10 @@ struct ProviderPreset: Identifiable, Sendable {
     /// Characters of transcript one request may carry before long meetings are summarized in parts.
     var contextChars = 120_000
     var note = ""
+
+    static let apple = ProviderPreset(id: "apple", name: "Apple 本机模型", baseURL: AppleModel.baseURL, wire: .appleOnDevice,
+                                      model: AppleModel.modelID, needsKey: false, isLocal: true, contextChars: 1800,
+                                      note: "Apple 智能自带的模型，在手机上运行，不联网、不用 Key。上下文较小，长会议会分很多段整理，纪要质量不如大模型。")
 
     static let all: [ProviderPreset] = [
         ProviderPreset(id: "anthropic", name: "Claude（Anthropic）", baseURL: "https://api.anthropic.com", wire: .anthropic,
@@ -54,7 +64,7 @@ struct ProviderPreset: Identifiable, Sendable {
                        note: "订阅 Go 后在 OpenCode 控制台取 Key。选模型时按官方文档自动切换请求格式，可以手动改：MiniMax、Qwen 走 Anthropic Messages，Grok、Muse、GPT 走 Responses，其余走 Chat Completions。"),
         ProviderPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", wire: .chatCompletions,
                        contextChars: 150_000),
-        ProviderPreset(id: "ollama", name: "Ollama（本地）", baseURL: "http://omarchy:11434/v1", wire: .chatCompletions,
+        ProviderPreset(id: "ollama", name: "Ollama（本地）", baseURL: "http://192.168.1.2:11434/v1", wire: .chatCompletions,
                        needsKey: false, isLocal: true, contextChars: 24_000,
                        note: "电脑上 Ollama 要监听 0.0.0.0（OLLAMA_HOST=0.0.0.0），手机经 Tailscale 或同一 Wi-Fi 访问。上下文长度按模型的 num_ctx 调整。"),
         ProviderPreset(id: "lmstudio", name: "LM Studio（本地）", baseURL: "http://192.168.1.2:1234/v1", wire: .chatCompletions,
@@ -65,7 +75,7 @@ struct ProviderPreset: Identifiable, Sendable {
         ProviderPreset(id: "custom-anthropic", name: "自定义（Anthropic 兼容）", baseURL: "", wire: .anthropic),
     ]
 
-    static func named(_ id: String) -> ProviderPreset? { all.first { $0.id == id } }
+    static func named(_ id: String) -> ProviderPreset? { id == apple.id ? apple : all.first { $0.id == id } }
 
     /// OpenCode Go serves each model family in its own format (opencode.ai/docs/go).
     static func openCodeGoWire(for model: String) -> WireFormat {
@@ -101,7 +111,10 @@ struct ProviderConfig: Codable, Identifiable, Hashable, Sendable {
     var apiKey: String { Keychain.string(for: keyAccount) ?? "" }
 
     /// Ready to send: an address and a model.
-    var isUsable: Bool { URL(string: baseURL)?.host != nil && !model.trimmingCharacters(in: .whitespaces).isEmpty }
+    var isUsable: Bool {
+        if wire == .appleOnDevice { return AppleModel.isAvailable }
+        return URL(string: baseURL)?.host != nil && !model.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var host: String { URL(string: baseURL)?.host ?? baseURL }
 }
@@ -125,6 +138,11 @@ final class ProviderStore {
             providers = list
         }
         activeID = UserDefaults.standard.string(forKey: Self.activeKey).flatMap(UUID.init(uuidString:))
+        // Works out of the box where Apple Intelligence is on: minutes without setting anything up.
+        if providers.isEmpty, AppleModel.isAvailable {
+            providers = [ProviderConfig(preset: .apple)]
+            persist()
+        }
         if active == nil { activeID = providers.first?.id }
     }
 

@@ -53,7 +53,8 @@ final class Summarizer {
             do {
                 let client = LLMClient(provider, session: session)
                 let lines = Self.transcriptLines(segments)
-                let chunks = Self.chunk(lines, budget: max(4000, provider.contextChars))
+                let budget = max(800, provider.contextChars)
+                let chunks = Self.chunk(lines, budget: budget)
                 var material: String
                 if chunks.count == 1 {
                     material = "会议转录：\n" + chunks[0]
@@ -63,14 +64,23 @@ final class Summarizer {
                         phase = "分段整理 \(index + 1)/\(chunks.count)"
                         notes.append(try await client.complete(system: Self.notesSystem(language), messages: [.init(role: .user, content: chunk)]))
                     }
+                    // A small model (Apple's on-device one) can't take all the notes at once: fold them again until they fit.
+                    var round = 1
+                    while notes.reduce(0, { $0 + $1.count }) > budget, notes.count > 1, round < 5 {
+                        round += 1
+                        let groups = Self.chunk(notes, budget: budget)
+                        guard groups.count < notes.count else { break }
+                        var folded: [String] = []
+                        for (index, group) in groups.enumerated() {
+                            phase = "合并笔记 \(index + 1)/\(groups.count)"
+                            folded.append(try await client.complete(system: Self.notesSystem(language), messages: [.init(role: .user, content: group)]))
+                        }
+                        notes = folded
+                    }
                     material = "会议很长，已分 \(chunks.count) 段整理成笔记（编号仍指向原转录行）：\n\n"
                         + notes.enumerated().map { "### 第 \($0.offset + 1) 段\n\($0.element)" }.joined(separator: "\n\n")
                 }
-                if !markers.isEmpty {
-                    material += "\n\n用户录音时做的标记（时间点附近的内容请优先体现）：\n" + markers.map {
-                        "- \(clockString($0.time)) \($0.kind.label)"
-                    }.joined(separator: "\n")
-                }
+                material += Self.markerNotes(markers)
                 phase = "撰写纪要"
                 let system = Self.minutesSystem(template: template, language: language, glossary: glossary)
                 for try await delta in client.stream(system: system, messages: [.init(role: .user, content: material)]) {
@@ -95,6 +105,27 @@ final class Summarizer {
     }
 
     // MARK: Prompts
+
+    /// The user's own notes and flags from the recording, for the model to build the minutes around.
+    static func markerNotes(_ markers: [Marker]) -> String {
+        var text = ""
+        let notes = markers.filter { $0.kind == .note }
+        if !notes.isEmpty {
+            text += "\n\n用户在会上亲手记的笔记（最能代表用户关心什么：纪要要围绕它们展开，每条都要在纪要相应位置体现并补全细节和出处）：\n"
+                + notes.map { "- \(clockString($0.time)) \($0.text ?? "")" }.joined(separator: "\n")
+        }
+        let flags = markers.filter { Marker.Kind.buttons.contains($0.kind) }
+        if !flags.isEmpty {
+            text += "\n\n用户录音时做的标记（时间点附近的内容请优先体现）：\n"
+                + flags.map { "- \(clockString($0.time)) \($0.kind.label)" }.joined(separator: "\n")
+        }
+        let gaps = markers.filter { $0.kind == .gap }
+        if !gaps.isEmpty {
+            text += "\n\n录音中断（这段时间的内容没有录到，不要臆测）：\n"
+                + gaps.map { "- \(clockString($0.time)) \($0.text ?? "")" }.joined(separator: "\n")
+        }
+        return text
+    }
 
     /// "[12] 08:31 张三：…" — the number is what citations point back to.
     static func transcriptLines(_ segments: [Segment]) -> [String] {

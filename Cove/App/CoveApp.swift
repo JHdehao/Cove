@@ -18,6 +18,7 @@ struct CoveApp: App {
             LibraryView()
                 .tint(CoveColor.accent)
                 .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
+                .modifier(AIConsentPrompt())
         }
         .modelContainer(Self.container)
     }

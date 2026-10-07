@@ -8,10 +8,23 @@
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<!-- 本地模型接口（Ollama / LM Studio）多为 http://，地址由用户自己填 -->
-		<key>NSAllowsArbitraryLoads</key>
+		<!-- 本地模型接口（Ollama / LM Studio）多为 http://：只放行局域网（IP、不带点的主机名、.local）和 Tailscale MagicDNS，云端一律 https -->
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>ts.net</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
 	</dict>
+	<!-- 只用系统 HTTPS，无自有加密：出口合规豁免 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>UIFileSharingEnabled</key>
