@@ -25,6 +25,8 @@ struct SettingsView: View {
     @State private var choosingFolder = false
     @State private var settingsError: String?
     @State private var editing: ProviderConfig?
+    @State private var uiLanguage = AppLanguage.current
+    @State private var languageChanged = false
 
     var body: some View {
         NavigationStack {
@@ -208,6 +210,13 @@ struct SettingsView: View {
                     Picker("外观", selection: $appearance) {
                         ForEach(Appearance.allCases) { Text($0.label).tag($0.rawValue) }
                     }
+                    Picker("界面语言", selection: $uiLanguage) {
+                        ForEach(AppLanguage.allCases) { Text($0.label).tag($0) }
+                    }
+                    .onChange(of: uiLanguage) { _, new in
+                        AppLanguage.apply(new)
+                        languageChanged = true
+                    }
                 } footer: {
                     Text(AppInfo.version).frame(maxWidth: .infinity).padding(.top, 16)
                 }
@@ -231,6 +240,9 @@ struct SettingsView: View {
                 Button("好") {}
             } message: {
                 Text(settingsError ?? "")
+            }
+            .alert("重新打开 Cove 后生效", isPresented: $languageChanged) {
+                Button("好") {}
             }
             .sheet(isPresented: $showPro) { ProView() }
             .sheet(isPresented: $adding) { PresetPicker { editing = ProviderConfig(preset: $0) } }
